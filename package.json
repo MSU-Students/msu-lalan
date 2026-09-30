@@ -1,0 +1,41 @@
+{
+  "name": "msu-lalan-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MSU Lalan - Campus Geospatial Navigation and Directory System for Mindanao State University Main Campus",
+  "workspaces": [
+    "client",
+    "api"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "dev:api": "npm run start:dev --workspace=api",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspaces",
+    "build:api": "npm run build --workspace=api",
+    "build:client": "npm run build --workspace=client",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspace=api && npm run test --workspace=client",
+    "test:api": "npm run test --workspace=api",
+    "test:api:watch": "npm run test:watch --workspace=api",
+    "test:client": "npm run test --workspace=client",
+    "test:client:watch": "npm run test:watch --workspace=client",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "keywords": [
+    "msu-lalan",
+    "gis",
+    "wayfinding",
+    "pwa",
+    "nuxt3",
+    "nestjs",
+    "typeorm",
+    "openstreetmap",
+    "leaflet",
+    "postgresql"
+  ],
+  "author": "MSU Lalan Core Engineering Team",
+  "license": "UNLICENSED"
+}

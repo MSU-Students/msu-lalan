@@ -1,0 +1,79 @@
+name: MSU Lalan CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend-ci:
+    name: Backend CI (API & TypeORM)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lalan_test_user
+          POSTGRES_PASSWORD: lalan_test_password
+          POSTGRES_DB: msu_lalan_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Backend TypeScript Check & Build
+        run: npm run build:api
+
+      - name: Run Backend Jest Unit Tests (TypeScript)
+        run: npm run test:api
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: lalan_test_user
+          DB_PASSWORD: lalan_test_password
+          DB_DATABASE: msu_lalan_test_db
+          JWT_SECRET: ci_test_jwt_secret_key_12345
+          GOOGLE_CLIENT_ID: test_client_id
+          GOOGLE_CLIENT_SECRET: test_client_secret
+
+  frontend-ci:
+    name: Frontend CI (Client & Nuxt 3)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Monorepo Dependencies
+        run: npm ci
+
+      - name: Run Frontend Jest Unit Tests (TypeScript)
+        run: npm run test:client
+
+      - name: Frontend Nuxt Build
+        run: npm run build:client

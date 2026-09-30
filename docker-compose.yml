@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: msu_lalan_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-lalan_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lalan_password}
+      POSTGRES_DB: ${DB_DATABASE:-msu_lalan_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-lalan_user} -d ${DB_DATABASE:-msu_lalan_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: msu_lalan_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-lalan_user}
+      DB_PASSWORD: ${DB_PASSWORD:-lalan_password}
+      DB_DATABASE: ${DB_DATABASE:-msu_lalan_db}
+      DB_SYNCHRONIZE: "true"
+      JWT_SECRET: ${JWT_SECRET:-msu_lalan_super_secret_jwt_key_2026}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-7d}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/v1/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ALLOWED_DOMAIN: ${ALLOWED_DOMAIN:-msumain.edu.ph}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./api:/app/api
+      - /app/api/node_modules
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: msu_lalan_client
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NUXT_PUBLIC_API_BASE_URL: ${NUXT_PUBLIC_API_BASE_URL:-http://localhost:3001/api/v1}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+
+volumes:
+  postgres_data:
+    name: msu_lalan_postgres_data
