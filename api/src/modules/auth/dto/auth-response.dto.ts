@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../users/entities/user.entity';
 
 export interface JwtPayload {
@@ -7,16 +8,36 @@ export interface JwtPayload {
   isInstitutionalEmail: boolean;
 }
 
+export class AuthUserDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty()
+  firstName: string;
+
+  @ApiProperty()
+  lastName: string;
+
+  @ApiProperty()
+  avatarUrl: string;
+
+  @ApiProperty({ enum: UserRole })
+  role: UserRole;
+
+  @ApiProperty()
+  isInstitutionalEmail: boolean;
+
+  @ApiProperty({ required: false, nullable: true })
+  departmentAffiliation?: string;
+}
+
 export class AuthResponseDto {
+  @ApiProperty()
   accessToken: string;
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    avatarUrl: string;
-    role: UserRole;
-    isInstitutionalEmail: boolean;
-    departmentAffiliation?: string;
-  };
+
+  @ApiProperty({ type: AuthUserDto })
+  user: AuthUserDto;
 }
