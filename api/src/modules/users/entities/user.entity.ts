@@ -38,6 +38,9 @@ export class User {
   @Column({ type: 'varchar', length: 500, nullable: true })
   avatarUrl: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true, select: false })
+  passwordHash: string | null;
+
   @Column({
     type: 'enum',
     enum: UserRole,

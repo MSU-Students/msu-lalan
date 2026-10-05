@@ -1,19 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { compare } from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
+
+jest.mock('bcryptjs', () => ({ compare: jest.fn() }));
 
 describe('AuthService', () => {
   let service: AuthService;
-  let mockUserRepository: any;
+  let mockUsersService: any;
   let mockJwtService: any;
   let mockConfigService: any;
 
   beforeEach(async () => {
-    mockUserRepository = {
-      findOne: jest.fn(),
+    mockUsersService = {
+      findByEmailOrGoogleId: jest.fn(),
+      findByEmail: jest.fn(),
+      findActiveByEmailWithPasswordHash: jest.fn(),
+      findActiveById: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
     };
@@ -33,8 +39,8 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepository,
+          provide: UsersService,
+          useValue: mockUsersService,
         },
         {
           provide: JwtService,
@@ -54,6 +60,79 @@ describe('AuthService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('loginWithPassword', () => {
+    const loginUser: User = {
+      id: 'user-1',
+      email: 'student@msumain.edu.ph',
+      googleId: null,
+      firstName: 'Student',
+      lastName: 'User',
+      avatarUrl: '',
+      passwordHash: '$2b$12$hashed-password',
+      role: UserRole.GENERAL_USER,
+      departmentAffiliation: null,
+      isInstitutionalEmail: true,
+      isActive: true,
+      auditLogs: [],
+      hazardReports: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    beforeEach(() => {
+      jest.mocked(compare).mockReset();
+      mockUsersService.findActiveByEmailWithPasswordHash.mockReset();
+    });
+
+    it('normalizes the email, verifies the password, and returns JWT auth data', async () => {
+      mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue(loginUser);
+      (compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.loginWithPassword(' Student@MSUMAIN.EDU.PH ', 'correct-password');
+
+      expect(mockUsersService.findActiveByEmailWithPasswordHash).toHaveBeenCalledWith(
+        'student@msumain.edu.ph',
+      );
+      expect(compare).toHaveBeenCalledWith('correct-password', loginUser.passwordHash);
+      expect(result.accessToken).toBe('mock-signed-jwt-token');
+      expect(result.user.email).toBe(loginUser.email);
+    });
+
+    it('rejects unknown accounts and accounts without a password hash generically', async () => {
+      mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue(null);
+      await expect(service.loginWithPassword(loginUser.email, 'password')).rejects.toThrow(
+        'Invalid username or password',
+      );
+
+      mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue({
+        ...loginUser,
+        passwordHash: null,
+      });
+      await expect(service.loginWithPassword(loginUser.email, 'password')).rejects.toThrow(
+        'Invalid username or password',
+      );
+      expect(compare).not.toHaveBeenCalled();
+    });
+
+    it('rejects incorrect passwords generically', async () => {
+      mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue(loginUser);
+      (compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.loginWithPassword(loginUser.email, 'incorrect-password')).rejects.toThrow(
+        'Invalid username or password',
+      );
+    });
+
+    it('rejects passwords exceeding bcrypt input length before comparison', async () => {
+      mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue(loginUser);
+
+      await expect(service.loginWithPassword(loginUser.email, 'é'.repeat(37))).rejects.toThrow(
+        'Invalid username or password',
+      );
+      expect(compare).not.toHaveBeenCalled();
+    });
+  });
+
   describe('isInstitutionalEmail', () => {
     it('should return true for @msumain.edu.ph email address', () => {
       expect(service.isInstitutionalEmail('student@msumain.edu.ph')).toBe(true);
@@ -70,7 +149,7 @@ describe('AuthService', () => {
 
   describe('validateOrCreateGoogleUser', () => {
     it('should create a new user if user does not exist', async () => {
-      mockUserRepository.findOne.mockResolvedValue(null);
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(null);
 
       const mockCreatedUser: User = {
         id: '123e4567-e89b-12d3-a456-426614174000',
@@ -79,6 +158,7 @@ describe('AuthService', () => {
         firstName: 'Juan',
         lastName: 'Dela Cruz',
         avatarUrl: 'https://example.com/photo.jpg',
+        passwordHash: null,
         role: UserRole.GENERAL_USER,
         isInstitutionalEmail: true,
         isActive: true,
@@ -89,8 +169,8 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      mockUserRepository.create.mockReturnValue(mockCreatedUser);
-      mockUserRepository.save.mockResolvedValue(mockCreatedUser);
+      mockUsersService.create.mockReturnValue(mockCreatedUser);
+      mockUsersService.save.mockResolvedValue(mockCreatedUser);
 
       const result = await service.validateOrCreateGoogleUser({
         googleId: 'google-1001',
@@ -100,9 +180,12 @@ describe('AuthService', () => {
         avatarUrl: 'https://example.com/photo.jpg',
       });
 
-      expect(mockUserRepository.findOne).toHaveBeenCalled();
-      expect(mockUserRepository.create).toHaveBeenCalled();
-      expect(mockUserRepository.save).toHaveBeenCalled();
+      expect(mockUsersService.findByEmailOrGoogleId).toHaveBeenCalledWith(
+        'juan.delacruz@msumain.edu.ph',
+        'google-1001',
+      );
+      expect(mockUsersService.create).toHaveBeenCalled();
+      expect(mockUsersService.save).toHaveBeenCalled();
       expect(result.email).toBe('juan.delacruz@msumain.edu.ph');
       expect(result.isInstitutionalEmail).toBe(true);
       expect(result.role).toBe(UserRole.GENERAL_USER);
@@ -121,8 +204,8 @@ describe('AuthService', () => {
         isActive: true,
       };
 
-      mockUserRepository.findOne.mockResolvedValue(existingUser);
-      mockUserRepository.save.mockResolvedValue({
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(existingUser);
+      mockUsersService.save.mockResolvedValue({
         ...existingUser,
         avatarUrl: 'https://example.com/new-avatar.jpg',
       });
@@ -135,8 +218,8 @@ describe('AuthService', () => {
         avatarUrl: 'https://example.com/new-avatar.jpg',
       });
 
-      expect(mockUserRepository.create).not.toHaveBeenCalled();
-      expect(mockUserRepository.save).toHaveBeenCalled();
+      expect(mockUsersService.create).not.toHaveBeenCalled();
+      expect(mockUsersService.save).toHaveBeenCalled();
       expect(result.role).toBe(UserRole.CAMPUS_ADMIN);
       expect(result.avatarUrl).toBe('https://example.com/new-avatar.jpg');
     });
@@ -151,6 +234,7 @@ describe('AuthService', () => {
         firstName: 'Admin',
         lastName: 'User',
         avatarUrl: 'https://example.com/avatar.jpg',
+        passwordHash: null,
         role: UserRole.SUPER_ADMIN,
         departmentAffiliation: 'Information & Communication Technology Center',
         isInstitutionalEmail: true,
