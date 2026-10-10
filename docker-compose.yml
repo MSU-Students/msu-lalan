@@ -38,7 +38,8 @@ services:
       DB_DATABASE: ${DB_DATABASE:-msu_lalan_db}
       DB_SYNCHRONIZE: "true"
       JWT_SECRET: ${JWT_SECRET:-msu_lalan_super_secret_jwt_key_2026}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-7d}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_TTL_SECONDS: ${JWT_REFRESH_TTL_SECONDS:-2592000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/v1/auth/google/callback}
