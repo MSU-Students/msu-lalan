@@ -1,6 +1,9 @@
 import {
   Controller,
+  Body,
   Get,
+  Post,
+  HttpCode,
   Req,
   Res,
   UseGuards,
@@ -8,8 +11,16 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { LoginDto } from './dto/login.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -24,6 +35,15 @@ export class AuthController {
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
+
+  @ApiOperation({ summary: 'Sign in with username and password' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Invalid username or password' })
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    return this.authService.loginWithPassword(loginDto.username, loginDto.password);
+  }
 
   @ApiOperation({ summary: 'Initiate Google OAuth 2.0 login' })
   @Get('google')

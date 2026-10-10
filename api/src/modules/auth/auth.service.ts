@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { compare } from 'bcryptjs';
 import { User, UserRole } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { AuthResponseDto, JwtPayload } from './dto/auth-response.dto';
 
 export interface GoogleProfileDto {
@@ -17,8 +17,7 @@ export interface GoogleProfileDto {
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -33,9 +32,7 @@ export class AuthService {
     const normalizedEmail = profile.email.toLowerCase().trim();
     const isInstitutional = this.isInstitutionalEmail(normalizedEmail);
 
-    let user = await this.userRepository.findOne({
-      where: [{ email: normalizedEmail }, { googleId: profile.googleId }],
-    });
+    let user = await this.usersService.findByEmailOrGoogleId(normalizedEmail, profile.googleId);
 
     if (user) {
       user.googleId = profile.googleId;
@@ -43,10 +40,10 @@ export class AuthService {
       user.lastName = profile.lastName || user.lastName;
       user.avatarUrl = profile.avatarUrl || user.avatarUrl;
       user.isInstitutionalEmail = isInstitutional;
-      return this.userRepository.save(user);
+      return this.usersService.save(user);
     }
 
-    user = this.userRepository.create({
+    user = this.usersService.create({
       email: normalizedEmail,
       googleId: profile.googleId,
       firstName: profile.firstName || '',
@@ -57,13 +54,27 @@ export class AuthService {
       isActive: true,
     });
 
-    return this.userRepository.save(user);
+    return this.usersService.save(user);
   }
 
   async validateJwtUser(userId: string): Promise<User | null> {
-    return this.userRepository.findOne({
-      where: { id: userId, isActive: true },
-    });
+    return this.usersService.findActiveById(userId);
+  }
+
+  async loginWithPassword(username: string, password: string): Promise<AuthResponseDto> {
+    const normalizedEmail = username.toLowerCase().trim();
+    const user = await this.usersService.findActiveByEmailWithPasswordHash(normalizedEmail);
+
+    if (
+      !user ||
+      !user.passwordHash ||
+      Buffer.byteLength(password, 'utf8') > 72 ||
+      !(await compare(password, user.passwordHash))
+    ) {
+      throw new UnauthorizedException('Invalid username or password');
+    }
+
+    return this.generateTokens(user);
   }
 
   generateTokens(user: User): AuthResponseDto {
