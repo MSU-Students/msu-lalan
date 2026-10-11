@@ -51,12 +51,12 @@ export default defineNuxtConfig({
       runtimeCaching: [
         {
           urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
-          handler: 'CacheFirst',
+          handler: 'StaleWhileRevalidate',
           options: {
             cacheName: 'osm-map-tiles-cache',
             expiration: {
               maxEntries: 1000,
-              maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Days cache for offline maps
+              maxAgeSeconds: 60 * 60 * 24 * 30,
             },
             cacheableResponse: {
               statuses: [0, 200],

@@ -49,6 +49,10 @@ graph TB
     Nest -->|Graph Calculations| Turf
 ```
 
+### 1.2 Offline Map Tile Cache
+
+The Workbox service worker uses `StaleWhileRevalidate` for OpenStreetMap tiles. A cached tile is returned immediately, including when the device is offline, while successful online requests refresh it in the background. The `osm-map-tiles-cache` is retained across service worker updates and limited to 1,000 tiles with a 30-day lifetime, so refreshing the app does not discard tiles the user has already cached.
+
 ---
 
 ## 2. Monorepo Structure
