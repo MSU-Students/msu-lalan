@@ -12,21 +12,32 @@ describe('AuthController', () => {
   let app: INestApplication;
   const authService = {
     loginWithPassword: jest.fn(),
+    generateTokens: jest.fn(),
   };
 
   beforeEach(async () => {
     authService.loginWithPassword.mockReset();
+    authService.generateTokens.mockReset();
 
-    const module = await Test.createTestingModule({
+    const moduleBuilder = Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authService },
-        { provide: ConfigService, useValue: { get: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, fallback: string) =>
+              key === 'FRONTEND_URL' ? 'http://localhost:3000' : fallback,
+            ),
+          },
+        },
         { provide: GoogleAuthGuard, useValue: {} },
         { provide: JwtAuthGuard, useValue: {} },
         { provide: RolesGuard, useValue: {} },
       ],
-    }).compile();
+    });
+    moduleBuilder.overrideGuard(GoogleAuthGuard).useValue({ canActivate: () => true });
+    const module = await moduleBuilder.compile();
 
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -93,5 +104,14 @@ describe('AuthController', () => {
       .expect(({ body }) => {
         expect(body.message).toBe('Invalid username or password');
       });
+  });
+
+  it('redirects failed Google OAuth without creating a token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/google/callback?error=access_denied')
+      .expect(302)
+      .expect('Location', 'http://localhost:3000/auth/callback?error=google_auth_failed');
+
+    expect(authService.generateTokens).not.toHaveBeenCalled();
   });
 });
