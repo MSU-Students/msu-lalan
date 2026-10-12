@@ -12,8 +12,9 @@ import { onMounted } from 'vue';
 import { useAuthStore } from './stores/auth';
 
 const authStore = useAuthStore();
+const config = useRuntimeConfig();
 
 onMounted(() => {
-  authStore.initFromStorage();
+  void authStore.initFromStorage(config.public.apiBaseUrl);
 });
 </script>
