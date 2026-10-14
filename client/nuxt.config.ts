@@ -56,7 +56,7 @@ export default defineNuxtConfig({
             cacheName: 'osm-map-tiles-cache',
             expiration: {
               maxEntries: 1000,
-              maxAgeSeconds: 60 * 60 * 24 * 30,
+              maxAgeSeconds: 60 * 60 * 24 * 15,
             },
             cacheableResponse: {
               statuses: [0, 200],
