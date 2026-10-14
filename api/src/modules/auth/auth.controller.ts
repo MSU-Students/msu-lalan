@@ -58,14 +58,21 @@ export class AuthController {
   @ApiOperation({ summary: 'Initiate Google OAuth 2.0 login' })
   @Get('google')
   @UseGuards(GoogleAuthGuard)
-  async googleAuth() {
-    // Initiates Passport Google OAuth2 redirect flow
+  async googleAuth(@Res() res: Response) {
+    if (!res.headersSent) {
+      return res.redirect(this.googleAuthFailureUrl());
+    }
+
+    return res;
   }
 
   @ApiOperation({ summary: 'Google OAuth 2.0 callback URL' })
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+    if (!req.user) {
+      return res.redirect(this.googleAuthFailureUrl());
+    }
     const authData = await this.authService.generateTokens(req.user as User);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
 
@@ -77,6 +84,10 @@ export class AuthController {
     );
   }
 
+  private googleAuthFailureUrl(): string {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    return `${frontendUrl.replace(/\/$/, '')}/auth/callback?error=google_auth_failed`;
+  }
   @ApiOperation({ summary: 'Refresh the current session and rotate its refresh token' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, expired, or revoked refresh token' })
