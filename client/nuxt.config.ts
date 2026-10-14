@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { MAP_TILE_CACHE_NAME } from './utils/map-tile-cache';
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: false },
@@ -51,15 +53,15 @@ export default defineNuxtConfig({
       runtimeCaching: [
         {
           urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
-          handler: 'CacheFirst',
+          handler: 'StaleWhileRevalidate',
           options: {
-            cacheName: 'osm-map-tiles-cache',
+            cacheName: MAP_TILE_CACHE_NAME,
             expiration: {
               maxEntries: 1000,
-              maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Days cache for offline maps
+              maxAgeSeconds: 60 * 60 * 24 * 15,
             },
             cacheableResponse: {
-              statuses: [0, 200],
+              statuses: [200],
             },
           },
         },
