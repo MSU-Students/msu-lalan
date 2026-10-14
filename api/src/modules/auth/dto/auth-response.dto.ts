@@ -6,6 +6,7 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   isInstitutionalEmail: boolean;
+  sid: string;
 }
 
 export class AuthUserDto {

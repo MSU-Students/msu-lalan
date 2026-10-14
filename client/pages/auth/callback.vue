@@ -74,6 +74,8 @@ onMounted(async () => {
 
     const json = await response.json();
     authStore.setAuth(token, json.data);
+    authStore.setUser(json.data);
+    authStore.scheduleRefresh(config.public.apiBaseUrl);
     loading.value = false;
 
     // Redirect to home after 1 second

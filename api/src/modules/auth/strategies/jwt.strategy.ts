@@ -19,10 +19,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    if (!(await this.authService.validateJwtSession(payload.sid))) {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
     const user = await this.authService.validateJwtUser(payload.sub);
     if (!user) {
       throw new UnauthorizedException('Invalid or expired token');
     }
-    return user;
+    return Object.assign(user, { sessionId: payload.sid });
   }
 }

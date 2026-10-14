@@ -25,7 +25,7 @@
                 {{ authStore.user?.role || 'USER' }}
               </span>
               <button
-                @click="authStore.logout()"
+                @click="logout"
                 class="text-xs text-red-200 hover:text-white underline ml-2 cursor-pointer"
               >
                 Logout
@@ -60,9 +60,16 @@
 </template>
 
 <script setup lang="ts">
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
+const router = useRouter();
 const config = useRuntimeConfig();
 const apiBaseUrl = config.public.apiBaseUrl;
+
+async function logout() {
+  await authStore.logout(apiBaseUrl);
+  await router.replace('/');
+}
 </script>

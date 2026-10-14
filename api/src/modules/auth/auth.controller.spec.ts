@@ -13,13 +13,20 @@ describe('AuthController', () => {
   const authService = {
     loginWithPassword: jest.fn(),
     generateTokens: jest.fn(),
+    refreshTokens: jest.fn(),
+    getRefreshTtlSeconds: jest.fn().mockReturnValue(2592000),
+    logout: jest.fn(),
   };
 
   beforeEach(async () => {
     authService.loginWithPassword.mockReset();
     authService.generateTokens.mockReset();
 
-    const moduleBuilder = Test.createTestingModule({
+    
+    authService.refreshTokens.mockReset();
+    authService.logout.mockReset();
+
+    const testingModule = Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authService },
@@ -32,12 +39,18 @@ describe('AuthController', () => {
           },
         },
         { provide: GoogleAuthGuard, useValue: {} },
-        { provide: JwtAuthGuard, useValue: {} },
         { provide: RolesGuard, useValue: {} },
       ],
     });
-    moduleBuilder.overrideGuard(GoogleAuthGuard).useValue({ canActivate: () => true });
-    const module = await moduleBuilder.compile();
+    testingModule.overrideGuard(GoogleAuthGuard).useValue({ canActivate: () => true });
+    const module = await testingModule.compile();
+    testingModule.overrideGuard(JwtAuthGuard).useValue({
+      canActivate: (context) => {
+        context.switchToHttp().getRequest().user = { id: 'user-1', sessionId: 'session-1' };
+        return true;
+      },
+    });
+    const module = await testingModule.compile();
 
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -58,6 +71,7 @@ describe('AuthController', () => {
   it('returns the auth response for valid credentials', async () => {
     const authResponse = {
       accessToken: 'signed-token',
+      refreshToken: 'secret-refresh-token',
       user: {
         id: 'user-1',
         email: 'student@msumain.edu.ph',
@@ -75,12 +89,61 @@ describe('AuthController', () => {
       .post('/api/v1/auth/login')
       .send({ username: 'student@msumain.edu.ph', password: 'valid-password' })
       .expect(200)
-      .expect(authResponse);
+      .expect({
+        accessToken: authResponse.accessToken,
+        user: authResponse.user,
+      });
 
     expect(authService.loginWithPassword).toHaveBeenCalledWith(
       'student@msumain.edu.ph',
       'valid-password',
     );
+  });
+
+  it('rotates the refresh cookie without returning the refresh token in JSON', async () => {
+    authService.refreshTokens.mockResolvedValue({
+      accessToken: 'replacement-token',
+      refreshToken: 'replacement-refresh-secret',
+      user: { id: 'user-1', email: 'student@msumain.edu.ph' },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', 'msu_lalan_refresh=current-refresh-secret')
+      .expect(200)
+      .expect(({ body, headers }) => {
+        expect(body).toEqual({
+          accessToken: 'replacement-token',
+          user: { id: 'user-1', email: 'student@msumain.edu.ph' },
+        });
+        expect(headers['set-cookie'][0]).toContain('msu_lalan_refresh=replacement-refresh-secret');
+        expect(headers['set-cookie'][0]).toContain('HttpOnly');
+      });
+
+    expect(authService.refreshTokens).toHaveBeenCalledWith('current-refresh-secret');
+  });
+
+  it('rejects refresh requests when the refresh token is invalid', async () => {
+    authService.refreshTokens.mockRejectedValue(
+      new UnauthorizedException('Invalid or expired refresh token'),
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .expect(401);
+  });
+
+  it('revokes the authenticated session and clears the refresh cookie on logout', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .expect(200)
+      .expect(({ body, headers }) => {
+        expect(body.message).toBe('Logged out successfully');
+        expect(headers['set-cookie'][0]).toContain('msu_lalan_refresh=');
+        expect(headers['set-cookie'][0]).toContain('Expires=Thu, 01 Jan 1970');
+      });
+
+    expect(authService.logout).toHaveBeenCalledWith('session-1', 'user-1');
   });
 
   it('rejects invalid request bodies', async () => {

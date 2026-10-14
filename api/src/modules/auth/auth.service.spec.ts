@@ -5,6 +5,8 @@ import { compare } from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { AuthSession } from './entities/auth-session.entity';
+import { getRepositoryToken } from '@nestjs/typeorm';
 
 jest.mock('bcryptjs', () => ({ compare: jest.fn() }));
 
@@ -13,6 +15,7 @@ describe('AuthService', () => {
   let mockUsersService: any;
   let mockJwtService: any;
   let mockConfigService: any;
+  let mockSessionsRepository: any;
 
   beforeEach(async () => {
     mockUsersService = {
@@ -26,6 +29,13 @@ describe('AuthService', () => {
 
     mockJwtService = {
       sign: jest.fn().mockReturnValue('mock-signed-jwt-token'),
+    };
+
+    mockSessionsRepository = {
+      create: jest.fn((session) => session),
+      save: jest.fn(async (session) => ({ ...session, id: 'session-1' })),
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
     mockConfigService = {
@@ -49,6 +59,10 @@ describe('AuthService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: getRepositoryToken(AuthSession),
+          useValue: mockSessionsRepository,
         },
       ],
     }).compile();
@@ -226,7 +240,7 @@ describe('AuthService', () => {
   });
 
   describe('generateTokens', () => {
-    it('should generate JWT access token and return user profile payload', () => {
+    it('creates a persisted session and returns an access token and user profile', async () => {
       const testUser: User = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         email: 'admin@msumain.edu.ph',
@@ -245,19 +259,81 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
 
-      const result = service.generateTokens(testUser);
+      const result = await service.generateTokens(testUser);
 
       expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: testUser.id,
         email: testUser.email,
         role: testUser.role,
         isInstitutionalEmail: testUser.isInstitutionalEmail,
+        sid: 'session-1',
       });
+      expect(mockSessionsRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: testUser.id, refreshTokenHash: expect.any(String) }),
+      );
 
       expect(result.accessToken).toBe('mock-signed-jwt-token');
+      expect(result.refreshToken).toEqual(expect.any(String));
       expect(result.user.email).toBe('admin@msumain.edu.ph');
       expect(result.user.role).toBe(UserRole.SUPER_ADMIN);
       expect(result.user.departmentAffiliation).toBe('Information & Communication Technology Center');
+    });
+
+    it('rotates the refresh token while retaining the existing session', async () => {
+      const testUser: User = {
+        id: 'user-1',
+        email: 'student@msumain.edu.ph',
+        googleId: null,
+        firstName: 'Student',
+        lastName: 'User',
+        avatarUrl: '',
+        passwordHash: null,
+        role: UserRole.GENERAL_USER,
+        departmentAffiliation: null,
+        isInstitutionalEmail: true,
+        isActive: true,
+        auditLogs: [],
+        hazardReports: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      mockSessionsRepository.findOne.mockResolvedValue({ id: 'session-1', userId: testUser.id });
+      mockUsersService.findActiveById.mockResolvedValue(testUser);
+
+      const result = await service.refreshTokens('current-refresh-token');
+
+      expect(mockSessionsRepository.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'session-1', refreshTokenHash: expect.any(String) }),
+        { refreshTokenHash: expect.any(String) },
+      );
+      expect(result.accessToken).toBe('mock-signed-jwt-token');
+      expect(result.refreshToken).not.toBe('current-refresh-token');
+      expect(mockJwtService.sign).toHaveBeenCalledWith(expect.objectContaining({ sid: 'session-1' }));
+    });
+
+    it('rejects a refresh token that does not match an active session', async () => {
+      mockSessionsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.refreshTokens('revoked-refresh-token')).rejects.toThrow(
+        'Invalid or expired refresh token',
+      );
+      expect(mockSessionsRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('revokes the current session on logout', async () => {
+      await service.logout('session-1', 'user-1');
+
+      expect(mockSessionsRepository.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'session-1', userId: 'user-1' }),
+        { revokedAt: expect.any(Date) },
+      );
+    });
+
+    it('rejects revoked or expired access-token sessions', async () => {
+      mockSessionsRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.validateJwtSession('session-1')).resolves.toBe(false);
+      expect(mockSessionsRepository.findOne).toHaveBeenCalled();
     });
   });
 });

@@ -9,6 +9,7 @@ import { RouteNode } from '../modules/navigation/entities/route-node.entity';
 import { RouteEdge } from '../modules/navigation/entities/route-edge.entity';
 import { HazardReport } from '../modules/navigation/entities/hazard-report.entity';
 import { AuditLog } from '../modules/admin/entities/audit-log.entity';
+import { AuthSession } from '../modules/auth/entities/auth-session.entity';
 
 export const allEntities = [
   User,
@@ -20,6 +21,7 @@ export const allEntities = [
   RouteEdge,
   HazardReport,
   AuditLog,
+  AuthSession,
 ];
 
 export const getTypeOrmConfig = (configService: ConfigService): TypeOrmModuleOptions => ({
