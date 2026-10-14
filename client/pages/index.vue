@@ -68,6 +68,25 @@
             Zoom: {{ mapStore.zoom }}x
           </div>
         </div>
+        <div
+          class="mb-3 rounded-lg border px-3 py-2 text-xs"
+          :class="isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="font-semibold">{{ isOnline ? 'Online' : 'Offline' }}</p>
+          <p v-if="cacheStatusError">{{ cacheStatusError }}</p>
+          <p v-else-if="!serviceWorkerControlled">
+            Offline tile caching is not active on this page. Open the production app over localhost or HTTPS, then reload after the service worker installs.
+          </p>
+          <p v-else-if="cachedTileCount === 0">
+            No map tiles are cached yet. Browse the map while online; only areas you have viewed are available offline.
+          </p>
+          <p v-else>{{ cachedTileCount }} map tiles cached. Previously viewed areas can render offline; uncached areas may be blank.</p>
+          <p v-if="tileLoadErrors > 0" class="mt-1">
+            Some tiles could not load. If offline, those areas may not be cached; reconnect and view them to cache them.
+          </p>
+        </div>
 
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
@@ -86,11 +105,18 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useMapStore } from '../stores/map';
+import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import { usePilarStore } from '~/stores/pilar';
 
 const mapStore = useMapStore();
 const pilarStore = usePilarStore();
 let mapInstance: any = null;
+const isOnline = ref(true);
+const serviceWorkerControlled = ref(false);
+const cachedTileCount = ref(0);
+const tileLoadErrors = ref(0);
+const cacheStatusError = ref('');
+let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
 const pageTitle = 'MSU Marawi Campus'; 
 const campusAddress = 'Marawi City, Lanao del Sur 8.0035° N, 124.2621° E';
@@ -107,6 +133,31 @@ const sampleAnchors = ref([
   { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
 ]);
 
+const refreshTileCacheStatus = async () => {
+  try {
+    const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
+    const status = await getMapTileCacheStatus(
+      typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller ?? null : null,
+      cacheStorage,
+    );
+    serviceWorkerControlled.value = status.serviceWorkerControlled;
+    cachedTileCount.value = status.tileCount;
+    cacheStatusError.value = '';
+  } catch (error) {
+    console.error('Unable to inspect the offline map tile cache.', error);
+    cacheStatusError.value = 'Unable to inspect the offline map cache. Check browser storage permissions and reload.';
+  }
+};
+
+const scheduleTileCacheStatusRefresh = () => {
+  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
+  cacheStatusTimer = setTimeout(refreshTileCacheStatus, 500);
+};
+
+const updateNetworkStatus = () => {
+  isOnline.value = navigator.onLine;
+};
+
 const initMap = async () => {
   if (typeof window === 'undefined') return;
   const L = (await import('leaflet')).default;
@@ -119,10 +170,16 @@ const initMap = async () => {
     mapStore.zoom,
   );
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
+    crossOrigin: true,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(mapInstance);
+
+  tileLayer.on('tileload', scheduleTileCacheStatusRefresh);
+  tileLayer.on('tileerror', () => {
+    tileLoadErrors.value += 1;
+  });
 
   // Add campus landmark anchors
   sampleAnchors.value.forEach((anchor) => {
@@ -147,10 +204,19 @@ const focusAnchor = (anchor: { coords: number[] }) => {
 };
 
 onMounted(() => {
+  isOnline.value = navigator.onLine;
+  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);
+  navigator.serviceWorker?.addEventListener('controllerchange', refreshTileCacheStatus);
+  refreshTileCacheStatus();
   initMap();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('online', updateNetworkStatus);
+  window.removeEventListener('offline', updateNetworkStatus);
+  navigator.serviceWorker?.removeEventListener('controllerchange', refreshTileCacheStatus);
+  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
   if (mapInstance) {
     mapInstance.remove();
     mapInstance = null;
