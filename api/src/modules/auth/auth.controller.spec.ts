@@ -43,7 +43,7 @@ describe('AuthController', () => {
       ],
     });
     testingModule.overrideGuard(GoogleAuthGuard).useValue({ canActivate: () => true });
-    const module = await testingModule.compile();
+    
     testingModule.overrideGuard(JwtAuthGuard).useValue({
       canActivate: (context) => {
         context.switchToHttp().getRequest().user = { id: 'user-1', sessionId: 'session-1' };
