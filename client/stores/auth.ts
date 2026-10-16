@@ -1,6 +1,28 @@
 import { defineStore } from 'pinia';
 import { UserRole, type AuthUser } from '../types';
 
+interface LoginResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+function isLoginResponse(value: unknown): value is LoginResponse {
+  if (!value || typeof value !== 'object') return false;
+
+  const response = value as Record<string, unknown>;
+  const user = response.user;
+  if (!user || typeof user !== 'object') return false;
+
+  const authUser = user as Record<string, unknown>;
+  return (
+    typeof response.accessToken === 'string' &&
+    typeof authUser.id === 'string' &&
+    typeof authUser.email === 'string' &&
+    Object.values(UserRole).includes(authUser.role as UserRole) &&
+    typeof authUser.isInstitutionalEmail === 'boolean'
+  );
+}
+
 export interface AuthState {
   token: string | null;
   user: AuthUser | null;
@@ -33,6 +55,44 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    async login(username: string, password: string, apiBaseUrl: string): Promise<void> {
+      let response: Response;
+      try {
+        response = await fetch(`${apiBaseUrl}/auth/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+      } catch {
+        throw new Error('Unable to connect. Check your internet connection and try again.');
+      }
+
+      if (response.status === 401) {
+        throw new Error('The email or password you entered is incorrect.');
+      }
+      if (response.status === 400) {
+        throw new Error('Enter a valid university email and password.');
+      }
+      if (!response.ok) {
+        throw new Error('Sign-in is temporarily unavailable. Please try again.');
+      }
+
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new Error('The sign-in service returned an unexpected response.');
+      }
+
+      if (!isLoginResponse(payload)) {
+        throw new Error('The sign-in service returned an unexpected response.');
+      }
+
+      this.setAuth(payload.accessToken, payload.user);
+      this.scheduleRefresh(apiBaseUrl);
+    },
+
     setToken(token: string) {
       this.token = token;
       this.isAuthenticated = true;
