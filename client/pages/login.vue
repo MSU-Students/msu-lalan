@@ -1,11 +1,6 @@
 <template>
   <main class="min-h-screen bg-white lg:grid lg:grid-cols-[1.04fr_0.96fr]">
-  <!-- <section 
-    class="relative hidden min-h-screen overflow-hidden bg-cover bg-center bg-no-repeat text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20"
-    style="background-image: url('/bg-campus.jpg');"
-  >       -->
   <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
-  <!-- Background Image na may Dark Overlay -->
   <div class="absolute inset-0 z-0">
     <img 
       src="~/assets/login-left-img.jpeg" 
@@ -67,13 +62,17 @@
 
     <section class="flex min-h-screen flex-col px-5 py-6 sm:px-10 sm:py-8 lg:px-12 xl:px-20">
       <header class="flex items-center justify-between lg:justify-end">
-        <NuxtLink to="/" class="inline-flex items-center gap-2 rounded-md text-sm font-bold text-[#800000] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#800000] lg:hidden">
-          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#800000] text-[#ffd700]">
-            <Compass :size="20" aria-hidden="true" />
+        <NuxtLink to="/" class="inline-flex min-w-0 shrink-0 items-center gap-2 rounded-md text-sm font-bold text-[#800000] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#800000] lg:hidden">
+          <span class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 sm:h-9 sm:w-9">
+            <img
+              src="~/assets/logo.png"
+              alt="MSU Lalan logo"
+              class="h-full w-full object-contain"
+            />
           </span>
-          MSU Lalan
+          <span class="whitespace-nowrap text-xs sm:text-sm">MSU Lalan</span>
         </NuxtLink>
-        <NuxtLink to="/" class="rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-[#800000] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#800000]">
+        <NuxtLink to="/" class="shrink-0 rounded-md text-xs font-medium text-slate-500 transition-colors hover:text-[#800000] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#800000] sm:text-sm">
           Back to campus map
         </NuxtLink>
       </header>
