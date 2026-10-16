@@ -1,6 +1,6 @@
 <template>
   <main class="min-h-screen bg-white lg:grid lg:grid-cols-[1.04fr_0.96fr]">
-  <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
+  <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:pt-4 lg:pb-10 xl:px-20">
   <div class="absolute inset-0 z-0">
     <img 
       src="~/assets/login-left-img.jpeg" 
@@ -18,12 +18,9 @@
 
   ...
     <NuxtLink to="/" class="relative z-10 inline-flex w-fit items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ffd700]">
-      <!-- White Badge Container -->
       <span class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-md">
         <img src="~/assets/logo.png" alt="MSU Lalan Logo" class="h-full w-full object-contain" />
       </span>
-
-      <!-- Text Section -->
       <span>
         <span class="block text-lg font-bold tracking-tight">MSU Lalan</span>
         <span class="block text-xs font-medium text-white/65">Find your way around campus</span>
@@ -31,28 +28,14 @@
     </NuxtLink>
 
       <div class="relative z-10 max-w-xl pb-5">
-        <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/80">
-          <MapPin :size="14" class="text-[#ffd700]" aria-hidden="true" />
-          Mindanao State University · Marawi City
-        </div>
         <h1 class="max-w-lg text-5xl font-semibold leading-[1.12] tracking-tight xl:text-[3.6rem]">
           Your campus,<br />
           <span class="text-[#ffd700]">within reach.</span>
         </h1>
         <p class="mt-5 max-w-md text-base leading-7 text-white/70">
-          Sign in to make your way through MSU Lanao del Sur with confidence.
+          Sign in to make your way through MSU-Main Campus Marawi City with confidence.
           Your campus directory and map are waiting.
         </p>
-
-        <div class="mt-10 flex items-center gap-3 border-t border-white/15 pt-6">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-[#ffd700]">
-            <ShieldCheck :size="20" aria-hidden="true" />
-          </span>
-          <div>
-            <p class="text-sm font-semibold">A secure campus account</p>
-            <p class="mt-0.5 text-xs text-white/55">Your sign-in is protected and private.</p>
-          </div>
-        </div>
       </div>
 
       <p class="relative z-10 text-xs text-white/45">
