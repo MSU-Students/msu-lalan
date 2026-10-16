@@ -1,21 +1,39 @@
 <template>
   <main class="min-h-screen bg-white lg:grid lg:grid-cols-[1.04fr_0.96fr]">
-    <section class="relative hidden min-h-screen overflow-hidden bg-[#690b19] text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
-      <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_18%_18%,rgba(255,215,0,0.14),transparent_38%),radial-gradient(ellipse_at_90%_85%,rgba(255,255,255,0.08),transparent_34%)]" aria-hidden="true"></div>
+  <!-- <section 
+    class="relative hidden min-h-screen overflow-hidden bg-cover bg-center bg-no-repeat text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20"
+    style="background-image: url('/bg-campus.jpg');"
+  >       -->
+    <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
+  <!-- Background Image na may Dark Overlay -->
+  <div class="absolute inset-0 z-0">
+    <img 
+      src="~/assets/bg-campus.jpg" 
+      alt="MSU Campus" 
+      class="h-full w-full object-cover opacity-40" 
+    />
+    <div class="absolute inset-0 bg-gradient-to-t from-[#690b19]/90 via-[#690b19]/60 to-transparent"></div>
+  </div>
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_18%_18%,rgba(255,215,0,0.14),transparent_38%),radial-gradient(ellipse_at_90%_85%,rgba(255,255,255,0.08),transparent_34%)]" aria-hidden="true"></div>
       <svg class="absolute inset-0 h-full w-full opacity-[0.12]" viewBox="0 0 800 1000" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <path d="M-80 220C120 150 180 320 370 250S620 110 880 220M-90 300C120 230 200 400 390 330S640 190 900 300M-90 390C120 320 220 490 410 420S660 280 900 390M-100 490C120 420 240 590 430 520S680 380 920 490M-100 600C120 530 260 700 450 630S700 490 920 600M-100 720C120 650 280 820 470 750S720 610 920 720" stroke="white" stroke-width="2"/>
         <path d="M140-40C220 130 90 240 180 400S300 650 230 1040M250-40C330 130 200 240 290 400S410 650 340 1040M590-40C510 130 650 240 550 400S430 650 500 1040" stroke="white" stroke-width="2"/>
       </svg>
 
-      <NuxtLink to="/" class="relative z-10 inline-flex w-fit items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ffd700]">
-        <span class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ffd700] text-[#690b19] shadow-lg shadow-black/10">
-          <Compass :size="24" :stroke-width="2.4" aria-hidden="true" />
-        </span>
-        <span>
-          <span class="block text-lg font-bold tracking-tight">MSU Lalan</span>
-          <span class="block text-xs font-medium text-white/65">Find your way around campus</span>
-        </span>
-      </NuxtLink>
+
+  ...
+    <NuxtLink to="/" class="relative z-10 inline-flex w-fit items-center gap-3 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ffd700]">
+      <!-- White Badge Container -->
+      <span class="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-md">
+        <img src="~/assets/logo.png" alt="MSU Lalan Logo" class="h-full w-full object-contain" />
+      </span>
+
+      <!-- Text Section -->
+      <span>
+        <span class="block text-lg font-bold tracking-tight">MSU Lalan</span>
+        <span class="block text-xs font-medium text-white/65">Find your way around campus</span>
+      </span>
+    </NuxtLink>
 
       <div class="relative z-10 max-w-xl pb-5">
         <div class="mb-6 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.07] px-3 py-1.5 text-xs font-medium text-white/80">
