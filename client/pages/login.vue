@@ -4,11 +4,11 @@
     class="relative hidden min-h-screen overflow-hidden bg-cover bg-center bg-no-repeat text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20"
     style="background-image: url('/bg-campus.jpg');"
   >       -->
-    <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
+  <section class="relative hidden min-h-screen overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-10 xl:px-20">
   <!-- Background Image na may Dark Overlay -->
   <div class="absolute inset-0 z-0">
     <img 
-      src="~/assets/bg-campus.jpg" 
+      src="~/assets/login-left-img.jpeg" 
       alt="MSU Campus" 
       class="h-full w-full object-cover opacity-40" 
     />
