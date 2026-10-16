@@ -255,6 +255,8 @@ erDiagram
 
 ## 6. Google OAuth 2.0 & Role-Based Access Control (RBAC)
 
+The frontend provides a username-and-password form at `/login`. It submits the university email as `username` to `POST /api/v1/auth/login`; the API returns an access token and user profile while setting the refresh token in an HTTP-only cookie. Google sign-in remains available as an alternative.
+
 ### 6.1 Google Cloud Console Setup Instructions
 1. Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project: **MSU Lalan Wayfinding**.
