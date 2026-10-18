@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { UserRole, type AuthUser } from '../types';
+import { UserRole, type AuthUser, type RegisterPayload, type RegisterResult } from '../types';
 
 export interface AuthState {
   token: string | null;
@@ -22,6 +22,7 @@ export const useAuthStore = defineStore('auth', {
     isSuperAdmin: (state): boolean => state.user?.role === UserRole.SUPER_ADMIN,
     isCampusAdmin: (state): boolean =>
       state.user?.role === UserRole.CAMPUS_ADMIN || state.user?.role === UserRole.SUPER_ADMIN,
+    isGuest: (state): boolean => state.user?.role === UserRole.GUEST,
     hasInstitutionalEmail: (state): boolean => !!state.user?.isInstitutionalEmail,
     displayName: (state): string => {
       if (!state.user) return 'Guest';
@@ -48,6 +49,52 @@ export const useAuthStore = defineStore('auth', {
     setAuth(token: string, user: AuthUser) {
       this.setToken(token);
       this.setUser(user);
+    },
+
+    /**
+     * Creates a guest account via POST /auth/register. It does not sign the user in;
+     * the user logs in afterwards with the credentials they registered.
+     */
+    async register(apiBaseUrl: string, payload: RegisterPayload): Promise<RegisterResult> {
+      let response: Response;
+      try {
+        response = await fetch(`${apiBaseUrl}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        return {
+          success: false,
+          message: 'Could not reach the server. Check your connection and try again.',
+        };
+      }
+
+      let json: { message?: string | string[] } | null = null;
+      try {
+        json = await response.json();
+      } catch {
+        // Non-JSON error body; fall back to a generic message below.
+      }
+
+      if (response.ok) {
+        return {
+          success: true,
+          message:
+            (typeof json?.message === 'string' && json.message) ||
+            'Registration successful. You can now sign in.',
+          status: response.status,
+        };
+      }
+
+      let message = 'Registration failed. Please try again.';
+      if (response.status === 409) {
+        message = 'An account with this email already exists. Try signing in instead.';
+      } else if (response.status === 400) {
+        const detail = Array.isArray(json?.message) ? json?.message.join(' ') : json?.message;
+        message = detail ? `Please check your details: ${detail}` : 'Please check your details and try again.';
+      }
+      return { success: false, message, status: response.status };
     },
 
     async logout(apiBaseUrl?: string) {

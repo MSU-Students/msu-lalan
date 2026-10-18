@@ -17,10 +17,14 @@ import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiUnauthorizedResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiConflictResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -37,6 +41,21 @@ export class AuthController {
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
+
+  @ApiOperation({ summary: 'Register a new guest account with email and password' })
+  @ApiCreatedResponse({ description: 'Account created with the GUEST role' })
+  @ApiBadRequestResponse({ description: 'Invalid registration details' })
+  @ApiConflictResponse({ description: 'An account with this email already exists' })
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() registerDto: RegisterDto) {
+    const user = await this.authService.registerGuest(registerDto);
+    return {
+      statusCode: HttpStatus.CREATED,
+      message: 'Registration successful. You can now sign in.',
+      data: user,
+    };
+  }
 
   @ApiOperation({ summary: 'Sign in with username and password' })
   @ApiOkResponse({ type: AuthResponseDto })

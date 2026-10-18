@@ -33,6 +33,12 @@
             </div>
           </template>
           <template v-else>
+            <NuxtLink
+              to="/auth/register"
+              class="inline-flex items-center px-3.5 py-1.5 bg-msu-gold text-xs font-semibold rounded-md text-msu-maroon hover:bg-msu-gold-light transition-colors"
+            >
+              Register
+            </NuxtLink>
             <a
               :href="`${apiBaseUrl}/auth/google`"
               class="inline-flex items-center px-3.5 py-1.5 border border-msu-gold text-xs font-semibold rounded-md text-msu-gold hover:bg-msu-gold hover:text-msu-maroon transition-colors"
