@@ -20,6 +20,13 @@ export interface MapCoordinates {
   lng: number;
 }
 
+export interface CampusMapMarker {
+  id: string;
+  name: string;
+  category: string;
+  coords: [number, number];
+}
+
 export interface EstablishmentSummary {
   id: string;
   name: string;
