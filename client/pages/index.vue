@@ -71,7 +71,14 @@
 
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
-          <div id="msu-map-container" class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"></div>
+          <LeafletMap
+            ref="mapComponent"
+            :center="mapStore.center"
+            :zoom="mapStore.zoom"
+            :markers="sampleAnchors"
+            @center-change="mapStore.setCenter"
+            @zoom-change="mapStore.setZoom"
+          />
           <template #fallback>
             <div class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 text-sm">
               Loading Leaflet Campus Canvas...
@@ -84,13 +91,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref } from 'vue';
 import { useMapStore } from '../stores/map';
 import { usePilarStore } from '~/stores/pilar';
+import LeafletMap from '~/components/LeafletMap.vue';
+import type { CampusMapMarker } from '~/types';
 
 const mapStore = useMapStore();
 const pilarStore = usePilarStore();
-let mapInstance: any = null;
+const mapComponent = ref<{ focusAnchor: (anchor: CampusMapMarker) => void } | null>(null);
 
 const pageTitle = 'MSU Marawi Campus'; 
 const campusAddress = 'Marawi City, Lanao del Sur 8.0035° N, 124.2621° E';
@@ -99,7 +108,7 @@ const newPilar = ref('Sample');
 function onEnterPilar() {
   pilarStore.addNewPilar(newPilar.value);
 }
-const sampleAnchors = ref([
+const sampleAnchors = ref<CampusMapMarker[]>([
   { id: '1', name: 'MSU Commercial Center (Agora)', category: 'Commercial', coords: [8.0035, 124.2621] },
   { id: '2', name: 'College of Information & Computing Sciences (CICS)', category: 'Academic', coords: [8.0042, 124.2635] },
   { id: '3', name: 'MSU Senate / Administration Building', category: 'Administrative', coords: [8.0051, 124.2612] },
@@ -107,55 +116,10 @@ const sampleAnchors = ref([
   { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
 ]);
 
-const initMap = async () => {
-  if (typeof window === 'undefined') return;
-  const L = (await import('leaflet')).default;
-
-  const container = document.getElementById('msu-map-container');
-  if (!container || mapInstance) return;
-
-  mapInstance = L.map('msu-map-container').setView(
-    [mapStore.center.lat, mapStore.center.lng],
-    mapStore.zoom,
-  );
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(mapInstance);
-
-  // Add campus landmark anchors
-  sampleAnchors.value.forEach((anchor) => {
-    const marker = L.marker([anchor.coords[0], anchor.coords[1]]).addTo(mapInstance);
-    marker.bindPopup(`<b>${anchor.name}</b><br><span style="font-size: 11px; color: #666;">${anchor.category}</span>`);
-  });
-
-  mapInstance.on('zoomend', () => {
-    mapStore.setZoom(mapInstance.getZoom());
-  });
-
-  mapInstance.on('moveend', () => {
-    const center = mapInstance.getCenter();
-    mapStore.setCenter({ lat: center.lat, lng: center.lng });
-  });
+const focusAnchor = (anchor: CampusMapMarker) => {
+  mapComponent.value?.focusAnchor(anchor);
 };
 
-const focusAnchor = (anchor: { coords: number[] }) => {
-  if (mapInstance) {
-    mapInstance.flyTo([anchor.coords[0], anchor.coords[1]], 18, { duration: 1.2 });
-  }
-};
-
-onMounted(() => {
-  initMap();
-});
-
-onBeforeUnmount(() => {
-  if (mapInstance) {
-    mapInstance.remove();
-    mapInstance = null;
-  }
-});
 </script>
 <style lang="css" scoped>
 .my-input {
