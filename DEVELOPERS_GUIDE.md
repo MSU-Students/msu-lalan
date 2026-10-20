@@ -49,6 +49,12 @@ graph TB
     Nest -->|Graph Calculations| Turf
 ```
 
+### 1.2 Offline Map Tile Cache
+
+The Workbox service worker uses `StaleWhileRevalidate` for OpenStreetMap tiles. A cached tile is returned immediately, including when the device is offline, while successful online requests refresh it in the background. Leaflet requests tiles in CORS mode, and Workbox stores only HTTP 200 responses, so failed requests are not cached as valid tiles. The `osm-map-tiles-cache` is retained across service worker updates and limited to 1,000 tiles with a 15-day lifetime.
+
+The map displays whether the browser is online, whether the active service worker controls the page, the number of cached tiles, and a warning if tiles fail to load. Service workers require HTTPS in production; `localhost` is also supported for development. Offline availability is limited to map areas the user has already viewed, and the public OSM tile service must not be bulk-downloaded for offline coverage.
+
 ---
 
 ## 2. Monorepo Structure
@@ -254,6 +260,8 @@ erDiagram
 ---
 
 ## 6. Google OAuth 2.0 & Role-Based Access Control (RBAC)
+
+The frontend provides a username-and-password form at `/login`. It submits the university email as `username` to `POST /api/v1/auth/login`; the API returns an access token and user profile while setting the refresh token in an HTTP-only cookie. Google sign-in remains available as an alternative.
 
 ### 6.1 Google Cloud Console Setup Instructions
 1. Navigate to the [Google Cloud Console](https://console.cloud.google.com/).

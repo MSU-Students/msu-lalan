@@ -16,6 +16,65 @@ describe('useAuthStore', () => {
     expect(authStore.displayName).toBe('Guest');
   });
 
+  it('signs in with username and password and stores the returned session', async () => {
+    const authStore = useAuthStore();
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        accessToken: 'signed-in-token',
+        user: {
+          id: 'usr-101',
+          email: 'student@msumain.edu.ph',
+          role: UserRole.GENERAL_USER,
+          isInstitutionalEmail: true,
+        },
+      }),
+    }) as jest.Mock;
+
+    try {
+      await authStore.login(
+        'student@msumain.edu.ph',
+        'valid-password',
+        'http://localhost:3001/api/v1',
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:3001/api/v1/auth/login',
+        expect.objectContaining({
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'student@msumain.edu.ph',
+            password: 'valid-password',
+          }),
+        }),
+      );
+      expect(authStore.token).toBe('signed-in-token');
+      expect(authStore.user?.email).toBe('student@msumain.edu.ph');
+      expect(authStore.isAuthenticated).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('shows a safe error when credentials are rejected', async () => {
+    const authStore = useAuthStore();
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 }) as jest.Mock;
+
+    try {
+      await expect(
+        authStore.login('student@msumain.edu.ph', 'wrong-password', 'http://localhost:3001/api/v1'),
+      ).rejects.toThrow('The email or password you entered is incorrect.');
+      expect(authStore.isAuthenticated).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
   it('should set auth tokens and recognize institutional email status', () => {
     const authStore = useAuthStore();
     authStore.setAuth('jwt-sample-token-xyz', {
