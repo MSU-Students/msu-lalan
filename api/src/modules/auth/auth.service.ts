@@ -1,13 +1,19 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
-import { AuthResponseDto, JwtPayload } from './dto/auth-response.dto';
+import { AuthResponseDto, AuthUserDto, JwtPayload } from './dto/auth-response.dto';
+import { RegisterDto } from './dto/register.dto';
 import { AuthSession } from './entities/auth-session.entity';
 
 export interface IssuedAuthTokens extends AuthResponseDto {
@@ -65,6 +71,48 @@ export class AuthService {
     });
 
     return this.usersService.save(user);
+  }
+
+  /**
+   * Self-service registration for guest users. New accounts always receive the
+   * GUEST role (fewer permissions than GENERAL_USER); the role can never be chosen by the client.
+   */
+  async registerGuest(dto: RegisterDto): Promise<AuthUserDto> {
+    const email = dto.email.toLowerCase().trim();
+
+    // bcrypt only uses the first 72 bytes; login rejects longer passwords, so reject them here too.
+    if (Buffer.byteLength(dto.password, 'utf8') > 72) {
+      throw new BadRequestException('password must be at most 72 bytes long');
+    }
+
+    if (await this.usersService.findByEmail(email)) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const passwordHash = await hash(dto.password, this.getBcryptRounds());
+    const user = this.usersService.create({
+      email,
+      passwordHash,
+      firstName: dto.firstName.trim(),
+      lastName: dto.lastName.trim(),
+      avatarUrl: '',
+      role: UserRole.GUEST,
+      isInstitutionalEmail: this.isInstitutionalEmail(email),
+      isActive: true,
+    });
+
+    let saved: User;
+    try {
+      saved = await this.usersService.save(user);
+    } catch (error) {
+      // Two simultaneous sign-ups can both pass the check above; the unique index catches the loser.
+      if ((error as { code?: string })?.code === '23505') {
+        throw new ConflictException('An account with this email already exists');
+      }
+      throw error;
+    }
+
+    return this.toAuthUser(saved);
   }
 
   async validateJwtUser(userId: string): Promise<User | null> {
@@ -185,17 +233,26 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        avatarUrl: user.avatarUrl,
-        role: user.role,
-        isInstitutionalEmail: user.isInstitutionalEmail,
-        departmentAffiliation: user.departmentAffiliation,
-      },
+      user: this.toAuthUser(user),
     };
+  }
+
+  private toAuthUser(user: User): AuthUserDto {
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      isInstitutionalEmail: user.isInstitutionalEmail,
+      departmentAffiliation: user.departmentAffiliation,
+    };
+  }
+
+  private getBcryptRounds(): number {
+    const rounds = Number(this.configService.get('BCRYPT_ROUNDS', 12));
+    return Number.isInteger(rounds) && rounds >= 10 && rounds <= 15 ? rounds : 12;
   }
 
   private hashToken(token: string): string {

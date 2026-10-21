@@ -286,6 +286,31 @@ The `AuthService` validates the user's Google email against the institutional do
 
 ---
 
+### 6.3 Guest Registration (Issue #18)
+
+Guests can create an email/password account without Google. Registration does not sign the user in; they log in afterwards through `POST /auth/login`.
+
+- **Endpoint:** `POST /api/v1/auth/register` (public)
+- **Body:** `email`, `password` (8–72 bytes, at least one letter and one number), `firstName`, `lastName`. Any other field (for example `role`) is rejected with `400`.
+- **Result:** `201` with the new user (never the password or hash). The account always gets the `GUEST` role, assigned on the server. Admin roles can never be granted through registration.
+- **Errors:** `400` invalid input, `409` email already registered.
+- **Passwords:** hashed with bcrypt (cost 12 by default; optional `BCRYPT_ROUNDS` env var, 10–15).
+- **Frontend:** `/auth/register` page (`client/pages/auth/register.vue`), `register` action in `client/stores/auth.ts`, validation in `client/utils/registration.ts`. The `/auth/login` page comes from the login task (#19).
+
+**Guest permission policy.** `GUEST` has fewer permissions than `GENERAL_USER`. Today the only authenticated routes are `GET /auth/me` and `POST /auth/logout` (allowed for guests) and `GET /auth/admin/verify-access` (admins only, guests denied). `RolesGuard` allows every authenticated role on routes with no `@Roles(...)`, so every **new** authenticated route must declare its roles explicitly; guests are only allowed where `UserRole.GUEST` is listed. Tests: `roles.guard.spec.ts`.
+
+**Database note.** `GUEST` is a new value of the PostgreSQL `role` enum. Local development uses TypeORM `synchronize` (enabled by default), which updates the enum automatically. This project has no migrations yet, so for a persistent or production database the enum change needs a deliberate rollout (for example `ALTER TYPE users_role_enum ADD VALUE 'GUEST'` before deploying this code). Existing users and roles are unchanged.
+
+**Not included (needs a decision):** email verification, rate limiting on `register`/`login`, and a guest-to-`GENERAL_USER` upgrade path.
+
+Example:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"guest@example.com","password":"Campus123","firstName":"Fatima","lastName":"Alawi"}'
+```
+
 ## 7. Getting Started & Local Development
 
 ### 7.1 Prerequisites

@@ -2,6 +2,7 @@ export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   CAMPUS_ADMIN = 'CAMPUS_ADMIN',
   GENERAL_USER = 'GENERAL_USER',
+  GUEST = 'GUEST',
 }
 
 export interface AuthUser {
@@ -13,6 +14,19 @@ export interface AuthUser {
   role: UserRole;
   isInstitutionalEmail: boolean;
   departmentAffiliation?: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface RegisterResult {
+  success: boolean;
+  message: string;
+  status?: number;
 }
 
 export interface MapCoordinates {

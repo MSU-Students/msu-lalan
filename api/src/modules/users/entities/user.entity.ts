@@ -14,6 +14,7 @@ export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   CAMPUS_ADMIN = 'CAMPUS_ADMIN',
   GENERAL_USER = 'GENERAL_USER',
+  GUEST = 'GUEST',
 }
 
 @Entity('users')
