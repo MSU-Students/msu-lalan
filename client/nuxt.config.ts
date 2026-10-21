@@ -39,18 +39,32 @@ export default defineNuxtConfig({
           src: '/icon-192.png',
           sizes: '192x192',
           type: 'image/png',
+          purpose: 'any',
         },
         {
           src: '/icon-512.png',
           sizes: '512x512',
           type: 'image/png',
+          purpose: 'any maskable',
         },
       ],
     },
     workbox: {
-      navigateFallback: '/',
+      navigateFallback: null,
       globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
       runtimeCaching: [
+        {
+          urlPattern: ({ request, url }) => request.mode === 'navigate' && url.pathname === '/',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'app-shell-cache',
+            networkTimeoutSeconds: 3,
+            expiration: {
+              maxEntries: 1,
+              maxAgeSeconds: 60 * 60 * 24,
+            },
+          },
+        },
         {
           urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
           handler: 'StaleWhileRevalidate',
