@@ -9,7 +9,7 @@
         <!-- Map Controls -->
         <div class="grid grid-cols-2 gap-2 mb-4">
           <button
-            @click="mapStore.resetToCampusCenter()"
+            @click="centerMap"
             class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors text-center cursor-pointer"
           >
             📍 Center 
@@ -83,14 +83,36 @@
             No map tiles are cached yet. Browse the map while online; only areas you have viewed are available offline.
           </p>
           <p v-else>{{ cachedTileCount }} map tiles cached. Previously viewed areas can render offline; uncached areas may be blank.</p>
+          <p v-if="mapLoadState === 'loading'" class="mt-1">Loading base map tiles...</p>
+          <p v-else-if="mapLoadState === 'loaded'" class="mt-1">Base map tiles loaded.</p>
+          <p v-else-if="mapLoadState === 'error'" class="mt-1">
+            Base map tiles could not be loaded. Check your connection or retry.
+          </p>
           <p v-if="tileLoadErrors > 0" class="mt-1">
-            Some tiles could not load. If offline, those areas may not be cached; reconnect and view them to cache them.
+            {{ tileLoadErrors }} map tile{{ tileLoadErrors === 1 ? '' : 's' }} could not load.
+            {{ isOnline ? 'Retry to reload the map.' : 'Reconnect to load uncached areas.' }}
           </p>
         </div>
 
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
-          <div id="msu-map-container" class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"></div>
+          <div id="msu-map-container" class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10">
+            <div
+              v-if="mapLoadState === 'error'"
+              class="absolute inset-0 z-[1000] flex flex-col items-center justify-center gap-3 bg-slate-100/95 p-6 text-center"
+              role="alert"
+            >
+              <p class="text-sm font-semibold text-slate-700">The map could not be loaded.</p>
+              <p class="text-xs text-slate-600">Check your internet connection, then try again.</p>
+              <button
+                type="button"
+                @click="retryMapTiles"
+                class="rounded-lg bg-msu-maroon px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-900"
+              >
+                Retry map tiles
+              </button>
+            </div>
+          </div>
           <template #fallback>
             <div class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 text-sm">
               Loading Leaflet Campus Canvas...
@@ -111,10 +133,13 @@ import { usePilarStore } from '~/stores/pilar';
 const mapStore = useMapStore();
 const pilarStore = usePilarStore();
 let mapInstance: any = null;
+let tileLayer: import('leaflet').TileLayer | null = null;
 const isOnline = ref(true);
 const serviceWorkerControlled = ref(false);
 const cachedTileCount = ref(0);
 const tileLoadErrors = ref(0);
+const successfulTileLoads = ref(0);
+const mapLoadState = ref<'loading' | 'loaded' | 'error'>('loading');
 const cacheStatusError = ref('');
 let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -158,43 +183,92 @@ const updateNetworkStatus = () => {
   isOnline.value = navigator.onLine;
 };
 
+const centerMap = () => {
+  mapStore.resetToCampusCenter();
+  mapInstance?.setView([mapStore.center.lat, mapStore.center.lng], mapStore.zoom, { animate: true });
+};
+
+const retryMapTiles = () => {
+  tileLoadErrors.value = 0;
+  successfulTileLoads.value = 0;
+  mapLoadState.value = 'loading';
+  if (!tileLayer) {
+    void initMap();
+    return;
+  }
+  tileLayer.redraw();
+};
+
 const initMap = async () => {
   if (typeof window === 'undefined') return;
-  const L = (await import('leaflet')).default;
+  if (mapInstance) return;
 
-  const container = document.getElementById('msu-map-container');
-  if (!container || mapInstance) return;
+  mapLoadState.value = 'loading';
+  try {
+    const L = (await import('leaflet')).default;
+    const container = document.getElementById('msu-map-container');
+    if (!container) {
+      throw new Error('The map container is not available.');
+    }
 
-  mapInstance = L.map('msu-map-container').setView(
-    [mapStore.center.lat, mapStore.center.lng],
-    mapStore.zoom,
-  );
+    mapInstance = L.map(container, {
+      dragging: true,
+      scrollWheelZoom: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      inertia: true,
+    }).setView(
+      [mapStore.center.lat, mapStore.center.lng],
+      mapStore.zoom,
+    );
 
-  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    crossOrigin: true,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(mapInstance);
+    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      crossOrigin: true,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    });
 
-  tileLayer.on('tileload', scheduleTileCacheStatusRefresh);
-  tileLayer.on('tileerror', () => {
-    tileLoadErrors.value += 1;
-  });
+    tileLayer.on('loading', () => {
+      tileLoadErrors.value = 0;
+      successfulTileLoads.value = 0;
+      mapLoadState.value = 'loading';
+    });
+    tileLayer.on('tileload', () => {
+      successfulTileLoads.value += 1;
+      scheduleTileCacheStatusRefresh();
+    });
+    tileLayer.on('tileerror', () => {
+      tileLoadErrors.value += 1;
+    });
+    tileLayer.on('load', () => {
+      mapLoadState.value = successfulTileLoads.value > 0 ? 'loaded' : 'error';
+    });
+    tileLayer.addTo(mapInstance);
 
-  // Add campus landmark anchors
-  sampleAnchors.value.forEach((anchor) => {
-    const marker = L.marker([anchor.coords[0], anchor.coords[1]]).addTo(mapInstance);
-    marker.bindPopup(`<b>${anchor.name}</b><br><span style="font-size: 11px; color: #666;">${anchor.category}</span>`);
-  });
+    sampleAnchors.value.forEach((anchor) => {
+      const marker = L.marker([anchor.coords[0], anchor.coords[1]]).addTo(mapInstance);
+      marker.bindPopup(`<b>${anchor.name}</b><br><span style="font-size: 11px; color: #666;">${anchor.category}</span>`);
+    });
 
-  mapInstance.on('zoomend', () => {
-    mapStore.setZoom(mapInstance.getZoom());
-  });
+    mapInstance.on('zoomend', () => {
+      mapStore.setZoom(mapInstance.getZoom());
+    });
 
-  mapInstance.on('moveend', () => {
-    const center = mapInstance.getCenter();
-    mapStore.setCenter({ lat: center.lat, lng: center.lng });
-  });
+    mapInstance.on('moveend', () => {
+      const center = mapInstance.getCenter();
+      mapStore.setCenter({ lat: center.lat, lng: center.lng });
+    });
+  } catch (error) {
+    console.error('Unable to initialize the campus map.', error);
+    mapLoadState.value = 'error';
+    tileLayer = null;
+    if (mapInstance) {
+      mapInstance.remove();
+      mapInstance = null;
+    }
+  }
 };
 
 const focusAnchor = (anchor: { coords: number[] }) => {
@@ -221,6 +295,7 @@ onBeforeUnmount(() => {
     mapInstance.remove();
     mapInstance = null;
   }
+  tileLayer = null;
 });
 </script>
 <style lang="css" scoped>
