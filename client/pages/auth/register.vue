@@ -11,7 +11,7 @@
         <p class="text-xs text-slate-500 mt-1">Your account was created with guest access.</p>
         <div class="mt-5 flex flex-col sm:flex-row gap-2 w-full">
           <NuxtLink
-            to="/auth/login"
+            to="/login"
             class="flex-1 inline-flex justify-center px-4 py-2 bg-msu-maroon text-white text-sm font-semibold rounded-lg hover:bg-msu-maroon-dark transition-colors"
           >
             Sign in
@@ -30,7 +30,7 @@
         <h2 class="text-xl font-bold text-slate-800">Create a guest account</h2>
         <p class="text-xs text-slate-500 mt-1 mb-5">
           Register to use MSU Lalan as a guest. Already have an account?
-          <NuxtLink to="/auth/login" class="text-msu-maroon font-semibold hover:underline">Sign in</NuxtLink>
+          <NuxtLink to="/login" class="text-msu-maroon font-semibold hover:underline">Sign in</NuxtLink>
         </p>
 
         <div
