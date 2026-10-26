@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { compare } from 'bcryptjs';
+import { compare, hash } from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { AuthSession } from './entities/auth-session.entity';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 
-jest.mock('bcryptjs', () => ({ compare: jest.fn() }));
+jest.mock('bcryptjs', () => ({ compare: jest.fn(), hash: jest.fn() }));
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -72,6 +73,91 @@ describe('AuthService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('registerGuest', () => {
+    const dto = {
+      email: ' Guest@Example.COM ',
+      password: 'Campus123',
+      firstName: ' Fatima ',
+      lastName: ' Alawi ',
+    };
+
+    beforeEach(() => {
+      jest.mocked(hash).mockReset();
+      (hash as jest.Mock).mockResolvedValue('$2b$12$hashed-by-bcrypt');
+      mockUsersService.findByEmail.mockReset();
+      mockUsersService.findByEmail.mockResolvedValue(null);
+      mockUsersService.create.mockReset();
+      mockUsersService.create.mockImplementation((u: any) => ({ ...u }));
+      mockUsersService.save.mockReset();
+      mockUsersService.save.mockImplementation(async (u: any) => ({ id: 'new-user-1', ...u }));
+    });
+
+    it('creates a GUEST account with a hashed password and normalized fields', async () => {
+      const result = await service.registerGuest(dto);
+
+      expect(mockUsersService.findByEmail).toHaveBeenCalledWith('guest@example.com');
+      expect(hash).toHaveBeenCalledWith('Campus123', 12);
+      expect(mockUsersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'guest@example.com',
+          passwordHash: '$2b$12$hashed-by-bcrypt',
+          firstName: 'Fatima',
+          lastName: 'Alawi',
+          role: UserRole.GUEST,
+          isInstitutionalEmail: false,
+          isActive: true,
+        }),
+      );
+      expect(result.id).toBe('new-user-1');
+      expect(result.role).toBe(UserRole.GUEST);
+    });
+
+    it('never stores the plain-text password and never returns hash or password', async () => {
+      const result = await service.registerGuest(dto);
+
+      const created = mockUsersService.create.mock.calls[0][0];
+      expect(created.passwordHash).not.toBe('Campus123');
+      expect(JSON.stringify(created)).not.toContain('"password":');
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(result).not.toHaveProperty('password');
+      expect(JSON.stringify(result)).not.toContain('hashed-by-bcrypt');
+    });
+
+    it('flags institutional email addresses', async () => {
+      const result = await service.registerGuest({ ...dto, email: 'student@msumain.edu.ph' });
+      expect(result.isInstitutionalEmail).toBe(true);
+      expect(result.role).toBe(UserRole.GUEST);
+    });
+
+    it('rejects an email that already has an account (case-insensitive) without saving', async () => {
+      mockUsersService.findByEmail.mockResolvedValue({ id: 'existing', email: 'guest@example.com' });
+
+      await expect(service.registerGuest(dto)).rejects.toThrow(ConflictException);
+      expect(hash).not.toHaveBeenCalled();
+      expect(mockUsersService.save).not.toHaveBeenCalled();
+    });
+
+    it('maps a unique-constraint race (Postgres 23505) to a conflict', async () => {
+      mockUsersService.save.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }));
+
+      await expect(service.registerGuest(dto)).rejects.toThrow(ConflictException);
+    });
+
+    it('rethrows unexpected database errors', async () => {
+      mockUsersService.save.mockRejectedValue(new Error('connection lost'));
+
+      await expect(service.registerGuest(dto)).rejects.toThrow('connection lost');
+    });
+
+    it('rejects passwords longer than bcrypt can handle (72 bytes) before hashing', async () => {
+      // 40 emoji characters = 160 bytes, but only 40 string characters.
+      await expect(service.registerGuest({ ...dto, password: 'A1' + '😀'.repeat(40) })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(hash).not.toHaveBeenCalled();
+    });
   });
 
   describe('loginWithPassword', () => {
