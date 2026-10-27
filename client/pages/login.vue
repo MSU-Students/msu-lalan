@@ -161,7 +161,7 @@
           <span class="h-px flex-1 bg-slate-200"></span>
         </div>
 
-        <a
+        <a 
           :href="`${apiBaseUrl}/auth/google`"
           class="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#800000]"
         >
