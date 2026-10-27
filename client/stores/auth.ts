@@ -73,7 +73,7 @@ export const useAuthStore = defineStore('auth', {
         throw new Error('The email or password you entered is incorrect.');
       }
       if (response.status === 400) {
-        throw new Error('Enter a valid university email and password.');
+        throw new Error('Enter a valid email address and password.');
       }
       if (!response.ok) {
         throw new Error('Sign-in is temporarily unavailable. Please try again.');
