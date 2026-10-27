@@ -87,6 +87,7 @@ export class PathfindingService {
         destinationNodeId,
         nodeIds: [startNodeId],
         edges: [],
+        coordinates: [graph.nodes.get(startNodeId)!.coordinates],
         distanceInMeters: 0,
       };
     }
@@ -141,12 +142,18 @@ export class PathfindingService {
 
     nodeIds.reverse();
     edges.reverse();
+    const coordinates = edges.flatMap((edge) => edge.coordinates ?? []);
+    if (coordinates.length === 0) {
+      coordinates.push(graph.nodes.get(startNodeId)!.coordinates);
+    }
+
     return {
       found: true,
       startNodeId,
       destinationNodeId,
       nodeIds,
       edges,
+      coordinates,
       distanceInMeters,
     };
   }

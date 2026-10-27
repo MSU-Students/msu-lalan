@@ -6,6 +6,7 @@ export interface FoundRoute {
   destinationNodeId: string;
   nodeIds: string[];
   edges: GraphNeighbor[];
+  coordinates: [number, number][];
   distanceInMeters: number;
 }
 

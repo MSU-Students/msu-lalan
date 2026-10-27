@@ -10,6 +10,7 @@ export interface GraphNeighbor {
   edgeId: string;
   weight: number; // Distansya sa meters
   edgeType: string;
+  coordinates?: [number, number][];
 }
 
 export type AdjacencyList = Map<string, GraphNeighbor[]>;

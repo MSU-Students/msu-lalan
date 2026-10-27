@@ -28,9 +28,9 @@ export class GraphBuilderService {
 
   constructor(private readonly validatorService: GeoJsonValidatorService) {}
 
-  buildGraphFromGeoJson(geoJson: CampusGraphGeoJsonDto): BuiltGraph {
+  buildGraphFromGeoJson(input: unknown): BuiltGraph {
     // 1. I-validate muna ang GeoJSON structure
-    const validation = this.validatorService.validateGraph(geoJson);
+    const validation = this.validatorService.validateGraph(input);
     if (!validation.isValid) {
       this.logger.error('Cannot build graph: Provided GeoJSON contains errors.');
       throw new BadRequestException({
@@ -39,6 +39,7 @@ export class GraphBuilderService {
       });
     }
 
+    const geoJson = input as CampusGraphGeoJsonDto;
     const nodes = new Map<string, GraphNode>();
     const adjacencyList: AdjacencyList = new Map();
 
@@ -57,6 +58,7 @@ export class GraphBuilderService {
     for (const feature of geoJson.features) {
       if (isLineStringFeature(feature)) {
         const { id, sourceNodeId, targetNodeId, distanceInMeters, edgeType, isBiDirectional = true } = feature.properties;
+        const coordinates = feature.geometry.coordinates;
 
         // Isama ang koneksyon mula Source papuntang Target
         this.addNeighbor(adjacencyList, sourceNodeId, {
@@ -64,6 +66,7 @@ export class GraphBuilderService {
           edgeId: id,
           weight: distanceInMeters,
           edgeType,
+          coordinates,
         });
 
         // Kapag bidirectional (pwedeng balikan), isama rin ang Target papuntang Source
@@ -73,6 +76,7 @@ export class GraphBuilderService {
             edgeId: id,
             weight: distanceInMeters,
             edgeType,
+            coordinates: [...coordinates].reverse(),
           });
         }
       }

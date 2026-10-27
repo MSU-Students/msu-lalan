@@ -3,6 +3,89 @@
     <!-- Left Panel: Directory & Sprint 0 Controls -->
     <div class="w-full md:w-1/3 flex flex-col gap-4">
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h2 class="text-xl font-bold text-slate-800 mb-1">Walking route planner</h2>
+        <p class="text-xs text-slate-500 mb-4">
+          Get a route from your current location to a mapped campus point.
+        </p>
+
+        <div class="space-y-3">
+          <button
+            type="button"
+            :disabled="isFindingLocation"
+            @click="useCurrentLocation"
+            class="w-full rounded-lg bg-msu-maroon px-3 py-2.5 text-sm font-semibold text-white hover:bg-msu-maroon-dark disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {{ isFindingLocation ? 'Finding your location...' : 'Use my current location' }}
+          </button>
+          <button
+            type="button"
+            :class="isPickingStart ? 'border-msu-maroon bg-red-50 text-msu-maroon' : 'border-slate-200 bg-white text-slate-700'"
+            class="w-full rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
+            @click="togglePickStart"
+          >
+            {{ isPickingStart ? 'Click the map to set your start' : 'Or choose a start point on the map' }}
+          </button>
+
+          <p v-if="startLocation" class="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800" role="status">
+            Start set: {{ startLocation.latitude.toFixed(5) }}, {{ startLocation.longitude.toFixed(5) }}
+          </p>
+          <p v-else class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Allow location access, or choose a start point on the map.
+          </p>
+
+          <div>
+            <label for="destination" class="mb-1 block text-xs font-semibold text-slate-700">Destination</label>
+            <select
+              id="destination"
+              v-model="destinationNodeId"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+              :disabled="isLoadingLocations || locations.length === 0"
+            >
+              <option value="" disabled>
+                {{ isLoadingLocations ? 'Loading campus locations...' : 'Choose a mapped location' }}
+              </option>
+              <option v-for="location in locations" :key="location.id" :value="location.id">
+                {{ location.name }}{{ location.hasOutgoingRoute ? '' : ' (no connected paths yet)' }}
+              </option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            :disabled="isFindingRoute || !startLocation || !destinationNodeId"
+            @click="findRoute"
+            class="w-full rounded-lg bg-msu-gold px-3 py-2.5 text-sm font-bold text-msu-maroon hover:bg-msu-gold-light disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {{ isFindingRoute ? 'Finding route...' : 'Find walking route' }}
+          </button>
+
+          <p
+            v-if="routeError"
+            class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+            role="alert"
+          >
+            {{ routeError }}
+          </p>
+          <div
+            v-if="routeSummary"
+            class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+            role="status"
+          >
+            <p class="font-semibold">{{ routeSummary.destinationName }}</p>
+            <p>Mapped route: {{ formatDistance(routeSummary.distanceInMeters) }}</p>
+            <p v-if="routeSummary.snapDistanceInMeters > 10" class="mt-1 text-xs">
+              Nearest mapped path is about {{ formatDistance(routeSummary.snapDistanceInMeters) }} from your start.
+              This short connector is an estimate, not mapped walking-path data.
+            </p>
+          </div>
+
+          <p class="text-[11px] leading-4 text-amber-800">
+            Demo graph notice: only the currently mapped paths are routable. Some campus locations may have no route.
+          </p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <h2 class="text-xl font-bold text-slate-800 mb-1">{{ pageTitle }}</h2>
         <p class="text-xs text-slate-500 mb-4">{{ campusAddress }}</p>
 
@@ -104,19 +187,53 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import type { LayerGroup, Map as LeafletMap } from 'leaflet';
 import { useMapStore } from '../stores/map';
 import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import { usePilarStore } from '~/stores/pilar';
 
 const mapStore = useMapStore();
 const pilarStore = usePilarStore();
-let mapInstance: any = null;
+interface CampusLocation {
+  id: string;
+  name: string;
+  nodeType: string;
+  coordinates: [number, number];
+  hasOutgoingRoute: boolean;
+}
+
+interface RouteApiResult {
+  found: boolean;
+  reason?: 'NO_ROUTE' | 'START_TOO_FAR';
+  distanceInMeters?: number;
+  coordinates?: [number, number][];
+  snapDistanceInMeters?: number;
+  startConnectorCoordinates?: [number, number][];
+  destinationNodeId?: string;
+}
+
+let mapInstance: LeafletMap | null = null;
+let routeLayer: LayerGroup | null = null;
 const isOnline = ref(true);
 const serviceWorkerControlled = ref(false);
 const cachedTileCount = ref(0);
 const tileLoadErrors = ref(0);
 const cacheStatusError = ref('');
+const locations = ref<CampusLocation[]>([]);
+const destinationNodeId = ref('');
+const startLocation = ref<{ latitude: number; longitude: number } | null>(null);
+const isLoadingLocations = ref(false);
+const isFindingLocation = ref(false);
+const isFindingRoute = ref(false);
+const isPickingStart = ref(false);
+const routeError = ref('');
+const routeSummary = ref<{
+  destinationName: string;
+  distanceInMeters: number;
+  snapDistanceInMeters: number;
+} | null>(null);
 let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
+const apiBaseUrl = useRuntimeConfig().public.apiBaseUrl;
 
 const pageTitle = 'MSU Marawi Campus'; 
 const campusAddress = 'Marawi City, Lanao del Sur 8.0035° N, 124.2621° E';
@@ -158,6 +275,145 @@ const updateNetworkStatus = () => {
   isOnline.value = navigator.onLine;
 };
 
+const loadLocations = async () => {
+  isLoadingLocations.value = true;
+  try {
+    const response = await fetch(`${apiBaseUrl}/navigation/locations`);
+    if (!response.ok) throw new Error('Unable to load campus destinations from the API.');
+    locations.value = await response.json() as CampusLocation[];
+  } catch (error) {
+    console.error('Unable to load campus navigation locations.', error);
+    routeError.value = 'Could not load mapped destinations. Check that the API is running, then reload.';
+  } finally {
+    isLoadingLocations.value = false;
+  }
+};
+
+const setStartLocation = (latitude: number, longitude: number) => {
+  startLocation.value = { latitude, longitude };
+  routeSummary.value = null;
+  routeError.value = '';
+  if (routeLayer && mapInstance) {
+    routeLayer.clearLayers();
+  }
+  mapInstance?.setView([latitude, longitude], Math.max(mapInstance.getZoom(), 17));
+};
+
+const useCurrentLocation = () => {
+  if (!navigator.geolocation) {
+    routeError.value = 'This browser does not support location access. Choose a start point on the map instead.';
+    return;
+  }
+
+  isFindingLocation.value = true;
+  routeError.value = '';
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      setStartLocation(coords.latitude, coords.longitude);
+      isFindingLocation.value = false;
+    },
+    (error) => {
+      routeError.value = error.code === error.PERMISSION_DENIED
+        ? 'Location permission was denied. Allow it in your browser settings or choose a start point on the map.'
+        : 'Could not determine your location. Try again or choose a start point on the map.';
+      isFindingLocation.value = false;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+  );
+};
+
+const togglePickStart = () => {
+  isPickingStart.value = !isPickingStart.value;
+  routeError.value = '';
+};
+
+const findRoute = async () => {
+  if (!startLocation.value || !destinationNodeId.value || isFindingRoute.value) return;
+
+  isFindingRoute.value = true;
+  routeError.value = '';
+  routeSummary.value = null;
+  try {
+    const response = await fetch(`${apiBaseUrl}/navigation/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startLatitude: startLocation.value.latitude,
+        startLongitude: startLocation.value.longitude,
+        destinationNodeId: destinationNodeId.value,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('The route service could not process this request. Check the selected location and try again.');
+    }
+
+    const result = await response.json() as RouteApiResult;
+    routeLayer?.clearLayers();
+
+    if (!result.found) {
+      routeError.value = result.reason === 'START_TOO_FAR'
+        ? 'Your start is too far from the currently mapped paths. Choose a point closer to the campus sample graph.'
+        : 'No mapped walking route connects your start to this destination yet.';
+      return;
+    }
+
+    if (!mapInstance || !routeLayer || !result.coordinates?.length) {
+      throw new Error('The map is not ready to display the route. Please reload and try again.');
+    }
+
+    const L = (await import('leaflet')).default;
+    const routeLatLngs = result.coordinates.map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
+    L.polyline(routeLatLngs, {
+      color: '#800000',
+      weight: 6,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }).addTo(routeLayer);
+
+    if (result.startConnectorCoordinates && (result.snapDistanceInMeters ?? 0) > 10) {
+      const connectorLatLngs = result.startConnectorCoordinates
+        .map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
+      L.polyline(connectorLatLngs, {
+        color: '#64748b',
+        weight: 3,
+        dashArray: '6 8',
+      }).addTo(routeLayer);
+    }
+
+    L.circleMarker([startLocation.value.latitude, startLocation.value.longitude], {
+      radius: 8,
+      color: '#ffffff',
+      weight: 3,
+      fillColor: '#2563eb',
+      fillOpacity: 1,
+    }).bindPopup('Your start location').addTo(routeLayer);
+
+    const destination = locations.value.find((location) => location.id === destinationNodeId.value);
+    if (destination) {
+      L.marker([destination.coordinates[1], destination.coordinates[0]])
+        .bindPopup(destination.name)
+        .addTo(routeLayer);
+      routeSummary.value = {
+        destinationName: destination.name,
+        distanceInMeters: result.distanceInMeters ?? 0,
+        snapDistanceInMeters: result.snapDistanceInMeters ?? 0,
+      };
+    }
+
+    mapInstance.fitBounds(L.latLngBounds(routeLatLngs), { padding: [40, 40] });
+  } catch (error) {
+    console.error('Unable to find a walking route.', error);
+    routeError.value = error instanceof Error ? error.message : 'Unable to find a route. Please try again.';
+  } finally {
+    isFindingRoute.value = false;
+  }
+};
+
+const formatDistance = (meters: number) =>
+  meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${Math.round(meters)} m`;
+
 const initMap = async () => {
   if (typeof window === 'undefined') return;
   const L = (await import('leaflet')).default;
@@ -169,6 +425,12 @@ const initMap = async () => {
     [mapStore.center.lat, mapStore.center.lng],
     mapStore.zoom,
   );
+  routeLayer = L.layerGroup().addTo(mapInstance);
+  mapInstance.on('click', (event) => {
+    if (!isPickingStart.value) return;
+    setStartLocation(event.latlng.lat, event.latlng.lng);
+    isPickingStart.value = false;
+  });
 
   const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -204,6 +466,7 @@ const focusAnchor = (anchor: { coords: number[] }) => {
 };
 
 onMounted(() => {
+  void loadLocations();
   isOnline.value = navigator.onLine;
   window.addEventListener('online', updateNetworkStatus);
   window.addEventListener('offline', updateNetworkStatus);
