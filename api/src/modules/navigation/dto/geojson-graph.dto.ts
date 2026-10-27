@@ -1,94 +1,53 @@
-import { IsString, IsArray, IsNumber, IsOptional, ValidateNested, Equals, IsBoolean, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+export type Position = [number, number];
 
-// --- Geometry DTOs ---
-export class PointGeometryDto {
-  @Equals('Point')
+export interface PointGeometryDto {
   type: 'Point';
-
-  @IsArray()
-  @IsNumber({}, { each: true })
-  coordinates: [number, number]; // [longitude, latitude]
+  coordinates: Position;
 }
 
-export class LineStringGeometryDto {
-  @Equals('LineString')
+export interface LineStringGeometryDto {
   type: 'LineString';
-
-  @IsArray()
-  coordinates: [number, number][]; // Array of [longitude, latitude]
+  coordinates: Position[];
 }
 
-export class PolygonGeometryDto {
-  @Equals('Polygon')
+export interface PolygonGeometryDto {
   type: 'Polygon';
-
-  @IsArray()
-  coordinates: [number, number][][];
+  coordinates: Position[][];
 }
 
-// --- Properties DTOs ---
-export class NodePropertiesDto {
-  @IsString()
+export interface NodePropertiesDto {
   id: string;
-
-  @IsString()
   name: string;
-
-  @IsOptional()
-  @IsString()
   acronym?: string;
-
-  @IsString()
   nodeType: string;
-
-  @IsOptional()
-  @IsString()
   category?: string;
-
-  @IsOptional()
-  @IsNumber()
   elevation?: number;
 }
 
-export class EdgePropertiesDto {
-  @IsString()
+export interface EdgePropertiesDto {
   id: string;
-
-  @IsString()
-  sourceNodeId: string; // Tumutukoy sa source Node ID
-
-  @IsString()
-  targetNodeId: string; // Tumutukoy sa target Node ID
-
-  @IsString()
+  sourceNodeId: string;
+  targetNodeId: string;
   edgeType: string;
-
-  @IsNumber()
-  @Min(0.0001, { message: 'Distance must be a positive number' })
   distanceInMeters: number;
-
-  @IsOptional()
-  @IsBoolean()
   isAccessibleForWheelchair?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   isBiDirectional?: boolean;
 }
 
-// --- GeoJSON Container DTO ---
-export class CampusGraphGeoJsonDto {
-  @Equals('FeatureCollection')
+export interface GeoJsonFeatureDto<Geometry, Properties> {
+  type: 'Feature';
+  geometry: Geometry;
+  properties: Properties;
+}
+
+export type CampusGraphFeatureDto =
+  | GeoJsonFeatureDto<PointGeometryDto, NodePropertiesDto>
+  | GeoJsonFeatureDto<LineStringGeometryDto, EdgePropertiesDto>
+  | GeoJsonFeatureDto<PolygonGeometryDto, Record<string, unknown>>;
+
+export interface CampusGraphGeoJsonDto {
   type: 'FeatureCollection';
-
-  @IsOptional()
-  @IsString()
   name?: string;
-
-  @IsOptional()
-  crs?: any;
-
-  @IsArray()
-  features: any[];
+  crs?: unknown;
+  features: CampusGraphFeatureDto[];
 }

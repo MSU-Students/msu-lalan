@@ -1,7 +1,26 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { GeoJsonValidatorService } from './geojson-validator.service';
-import { CampusGraphGeoJsonDto } from '../dto/geojson-graph.dto';
-import { BuiltGraph, GraphNode, AdjacencyList } from '../interfaces/graph.interface';
+import {
+  CampusGraphGeoJsonDto,
+  EdgePropertiesDto,
+  GeoJsonFeatureDto,
+  LineStringGeometryDto,
+  NodePropertiesDto,
+  PointGeometryDto,
+} from '../dto/geojson-graph.dto';
+import { BuiltGraph, GraphNode, AdjacencyList, GraphNeighbor } from '../interfaces/graph.interface';
+
+function isPointFeature(
+  feature: CampusGraphGeoJsonDto['features'][number],
+): feature is GeoJsonFeatureDto<PointGeometryDto, NodePropertiesDto> {
+  return feature.geometry.type === 'Point';
+}
+
+function isLineStringFeature(
+  feature: CampusGraphGeoJsonDto['features'][number],
+): feature is GeoJsonFeatureDto<LineStringGeometryDto, EdgePropertiesDto> {
+  return feature.geometry.type === 'LineString';
+}
 
 @Injectable()
 export class GraphBuilderService {
@@ -25,9 +44,9 @@ export class GraphBuilderService {
 
     // 2. Pass 1: Kunin ang lahat ng Point features (Nodes) at i-initialize ang Adjacency List
     for (const feature of geoJson.features) {
-      if (feature.geometry?.type === 'Point') {
+      if (isPointFeature(feature)) {
         const { id, name, nodeType } = feature.properties;
-        const coordinates = feature.geometry.coordinates as [number, number];
+        const coordinates = feature.geometry.coordinates;
 
         nodes.set(id, { id, name, nodeType, coordinates });
         adjacencyList.set(id, []); // Simulan bilang empty array
@@ -36,7 +55,7 @@ export class GraphBuilderService {
 
     // 3. Pass 2: I-populate ang Adjacency List gamit ang LineString features (Edges)
     for (const feature of geoJson.features) {
-      if (feature.geometry?.type === 'LineString') {
+      if (isLineStringFeature(feature)) {
         const { id, sourceNodeId, targetNodeId, distanceInMeters, edgeType, isBiDirectional = true } = feature.properties;
 
         // Isama ang koneksyon mula Source papuntang Target
@@ -63,7 +82,7 @@ export class GraphBuilderService {
     return { nodes, adjacencyList };
   }
 
-  private addNeighbor(adjList: AdjacencyList, fromNodeId: string, neighbor: any) {
+  private addNeighbor(adjList: AdjacencyList, fromNodeId: string, neighbor: GraphNeighbor) {
     const neighbors = adjList.get(fromNodeId);
     if (neighbors) {
       neighbors.push(neighbor);
