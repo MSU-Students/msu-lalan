@@ -30,6 +30,7 @@ export interface EdgePropertiesDto {
   targetNodeId: string;
   edgeType: string;
   distanceInMeters: number;
+  dataQuality?: 'ILLUSTRATIVE' | 'VERIFIED';
   isAccessibleForWheelchair?: boolean;
   isBiDirectional?: boolean;
 }

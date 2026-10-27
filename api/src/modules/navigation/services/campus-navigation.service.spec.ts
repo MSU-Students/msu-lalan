@@ -29,9 +29,13 @@ describe('CampusNavigationService', () => {
     if (!route.found) return;
     expect(route.nodeIds).toEqual(['node-agora', 'node-cics']);
     expect(route.distanceInMeters).toBe(175.4);
+    expect(route.dataQuality).toBe('ILLUSTRATIVE');
     expect(route.coordinates).toEqual([
       [124.2621, 8.0035],
-      [124.2628, 8.0038],
+      [124.2620, 8.0038],
+      [124.2624, 8.0040],
+      [124.2629, 8.0040],
+      [124.2631, 8.0042],
       [124.2635, 8.0042],
     ]);
   });

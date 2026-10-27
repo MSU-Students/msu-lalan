@@ -89,6 +89,7 @@ export class PathfindingService {
         edges: [],
         coordinates: [graph.nodes.get(startNodeId)!.coordinates],
         distanceInMeters: 0,
+        dataQuality: 'VERIFIED',
       };
     }
 
@@ -142,7 +143,14 @@ export class PathfindingService {
 
     nodeIds.reverse();
     edges.reverse();
-    const coordinates = edges.flatMap((edge) => edge.coordinates ?? []);
+    const coordinates: [number, number][] = [];
+    for (let index = 0; index < edges.length; index++) {
+      const edgeCoordinates = edges[index].coordinates ?? [
+        graph.nodes.get(nodeIds[index])!.coordinates,
+        graph.nodes.get(nodeIds[index + 1])!.coordinates,
+      ];
+      coordinates.push(...(coordinates.length > 0 ? edgeCoordinates.slice(1) : edgeCoordinates));
+    }
     if (coordinates.length === 0) {
       coordinates.push(graph.nodes.get(startNodeId)!.coordinates);
     }
@@ -155,6 +163,9 @@ export class PathfindingService {
       edges,
       coordinates,
       distanceInMeters,
+      dataQuality: edges.some((edge) => edge.dataQuality === 'ILLUSTRATIVE')
+        ? 'ILLUSTRATIVE'
+        : 'VERIFIED',
     };
   }
 

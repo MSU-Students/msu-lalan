@@ -69,11 +69,17 @@
           </p>
           <div
             v-if="routeSummary"
-            class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
+            class="rounded-lg border px-3 py-2 text-sm"
+            :class="routeSummary.dataQuality === 'ILLUSTRATIVE'
+              ? 'border-amber-300 bg-amber-50 text-amber-950'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-900'"
             role="status"
           >
             <p class="font-semibold">{{ routeSummary.destinationName }}</p>
             <p>Mapped route: {{ formatDistance(routeSummary.distanceInMeters) }}</p>
+            <p v-if="routeSummary.dataQuality === 'ILLUSTRATIVE'" class="mt-1 font-bold">
+              Illustrative demo path — not surveyed or verified on campus.
+            </p>
             <p v-if="routeSummary.snapDistanceInMeters > 10" class="mt-1 text-xs">
               Nearest mapped path is about {{ formatDistance(routeSummary.snapDistanceInMeters) }} from your start.
               This short connector is an estimate, not mapped walking-path data.
@@ -81,7 +87,7 @@
           </div>
 
           <p class="text-[11px] leading-4 text-amber-800">
-            Demo graph notice: only the currently mapped paths are routable. Some campus locations may have no route.
+            DEMO ONLY: sample paths and distances are illustrative, not verified campus directions. Some locations may have no route.
           </p>
         </div>
       </div>
@@ -207,6 +213,7 @@ interface RouteApiResult {
   found: boolean;
   reason?: 'NO_ROUTE' | 'START_TOO_FAR';
   distanceInMeters?: number;
+  dataQuality?: 'ILLUSTRATIVE' | 'VERIFIED';
   coordinates?: [number, number][];
   snapDistanceInMeters?: number;
   startConnectorCoordinates?: [number, number][];
@@ -232,6 +239,7 @@ const routeSummary = ref<{
   destinationName: string;
   distanceInMeters: number;
   snapDistanceInMeters: number;
+  dataQuality: 'ILLUSTRATIVE' | 'VERIFIED';
 } | null>(null);
 let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
 const apiBaseUrl = useRuntimeConfig().public.apiBaseUrl;
@@ -406,6 +414,7 @@ const findRoute = async () => {
         destinationName: destination.name,
         distanceInMeters: result.distanceInMeters ?? 0,
         snapDistanceInMeters: result.snapDistanceInMeters ?? 0,
+        dataQuality: result.dataQuality ?? 'ILLUSTRATIVE',
       };
     }
 

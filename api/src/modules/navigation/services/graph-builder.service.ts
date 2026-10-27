@@ -57,7 +57,15 @@ export class GraphBuilderService {
     // 3. Pass 2: I-populate ang Adjacency List gamit ang LineString features (Edges)
     for (const feature of geoJson.features) {
       if (isLineStringFeature(feature)) {
-        const { id, sourceNodeId, targetNodeId, distanceInMeters, edgeType, isBiDirectional = true } = feature.properties;
+        const {
+          id,
+          sourceNodeId,
+          targetNodeId,
+          distanceInMeters,
+          edgeType,
+          dataQuality,
+          isBiDirectional = true,
+        } = feature.properties;
         const coordinates = feature.geometry.coordinates;
 
         // Isama ang koneksyon mula Source papuntang Target
@@ -67,6 +75,7 @@ export class GraphBuilderService {
           weight: distanceInMeters,
           edgeType,
           coordinates,
+          dataQuality,
         });
 
         // Kapag bidirectional (pwedeng balikan), isama rin ang Target papuntang Source
@@ -77,6 +86,7 @@ export class GraphBuilderService {
             weight: distanceInMeters,
             edgeType,
             coordinates: [...coordinates].reverse(),
+            dataQuality,
           });
         }
       }

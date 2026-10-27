@@ -1,6 +1,7 @@
 {
   "type": "FeatureCollection",
-  "name": "MSU_Main_Campus_Spatial_Network_Sprint0",
+  "name": "MSU_Main_Campus_Spatial_Network_Sprint0_Illustrative",
+  "description": "Illustrative demo routes only. These paths and distances are fabricated for UI demonstration and have not been verified on campus.",
   "crs": {
     "type": "name",
     "properties": {
@@ -88,6 +89,7 @@
         "targetNodeId": "node-cics",
         "edgeType": "COVERED_WALKWAY",
         "distanceInMeters": 175.4,
+        "dataQuality": "ILLUSTRATIVE",
         "isAccessibleForWheelchair": true,
         "isBiDirectional": true
       },
@@ -95,7 +97,10 @@
         "type": "LineString",
         "coordinates": [
           [124.2621, 8.0035],
-          [124.2628, 8.0038],
+          [124.2620, 8.0038],
+          [124.2624, 8.0040],
+          [124.2629, 8.0040],
+          [124.2631, 8.0042],
           [124.2635, 8.0042]
         ]
       }
@@ -108,6 +113,7 @@
         "targetNodeId": "node-admin",
         "edgeType": "PAVED_ROAD",
         "distanceInMeters": 210.0,
+        "dataQuality": "ILLUSTRATIVE",
         "isAccessibleForWheelchair": true,
         "isBiDirectional": true
       },
@@ -115,7 +121,12 @@
         "type": "LineString",
         "coordinates": [
           [124.2621, 8.0035],
-          [124.2616, 8.0043],
+          [124.2623, 8.0037],
+          [124.2621, 8.0040],
+          [124.2618, 8.0042],
+          [124.2617, 8.0045],
+          [124.2614, 8.0047],
+          [124.2613, 8.0049],
           [124.2612, 8.0051]
         ]
       }

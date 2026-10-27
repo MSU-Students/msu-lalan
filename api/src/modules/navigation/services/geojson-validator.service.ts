@@ -135,6 +135,15 @@ export class GeoJsonValidatorService {
           if (!isNonEmptyString(properties.edgeType)) {
             errors.push(`Feature[${index}] (Edge '${String(edgeId ?? 'unknown')}'): edgeType must be a non-empty string.`);
           }
+          if (
+            properties.dataQuality !== undefined &&
+            properties.dataQuality !== 'ILLUSTRATIVE' &&
+            properties.dataQuality !== 'VERIFIED'
+          ) {
+            errors.push(
+              `Feature[${index}] (Edge '${String(edgeId ?? 'unknown')}'): dataQuality must be 'ILLUSTRATIVE' or 'VERIFIED'.`,
+            );
+          }
           if (typeof properties.distanceInMeters !== 'number' ||
               !Number.isFinite(properties.distanceInMeters) ||
               properties.distanceInMeters <= 0) {

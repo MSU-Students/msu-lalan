@@ -11,9 +11,9 @@ describe('PathfindingService', () => {
 
   function makeGraph(): BuiltGraph {
     const nodes = new Map(
-      ['A', 'B', 'C', 'D', 'E'].map((id) => [
+      ['A', 'B', 'C', 'D', 'E'].map((id, index) => [
         id,
-        { id, name: id, coordinates: [124.26, 8.0] as [number, number] },
+        { id, name: id, coordinates: [124.26 + index * 0.001, 8 + index * 0.001] as [number, number] },
       ]),
     );
     const adjacencyList = new Map([
@@ -48,8 +48,14 @@ describe('PathfindingService', () => {
         { nodeId: 'B', edgeId: 'CB', weight: 1, edgeType: 'PATH' },
         { nodeId: 'D', edgeId: 'BD', weight: 2, edgeType: 'PATH' },
       ],
-      coordinates: [[124.26, 8.0]],
+      coordinates: [
+        [124.26, 8],
+        [124.262, 8.002],
+        [124.26100000000001, 8.001],
+        [124.263, 8.003],
+      ],
       distanceInMeters: 5,
+      dataQuality: 'VERIFIED',
     });
   });
 
@@ -62,6 +68,16 @@ describe('PathfindingService', () => {
     });
   });
 
+  it('marks a route illustrative if any route edge uses illustrative data', () => {
+    const graph = makeGraph();
+    const edge = graph.adjacencyList.get('C')?.find((neighbor) => neighbor.edgeId === 'CB');
+    if (edge) edge.dataQuality = 'ILLUSTRATIVE';
+
+    const result = service.findShortestRoute(graph, 'A', 'D');
+    expect(result.found).toBe(true);
+    if (result.found) expect(result.dataQuality).toBe('ILLUSTRATIVE');
+  });
+
   it('returns a zero-distance route when start and destination are the same', () => {
     expect(service.findShortestRoute(makeGraph(), 'A', 'A')).toEqual({
       found: true,
@@ -69,8 +85,9 @@ describe('PathfindingService', () => {
       destinationNodeId: 'A',
       nodeIds: ['A'],
       edges: [],
-      coordinates: [[124.26, 8.0]],
+      coordinates: [[124.26, 8]],
       distanceInMeters: 0,
+      dataQuality: 'VERIFIED',
     });
   });
 

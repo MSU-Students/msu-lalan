@@ -8,6 +8,7 @@ export interface FoundRoute {
   edges: GraphNeighbor[];
   coordinates: [number, number][];
   distanceInMeters: number;
+  dataQuality: 'ILLUSTRATIVE' | 'VERIFIED';
 }
 
 export interface NoRoute {

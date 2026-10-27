@@ -362,7 +362,7 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
 2. Open `http://localhost:3000` and allow browser location access, or choose **Or choose a start point on the map** and click near a mapped path.
 3. Select a destination and click **Find walking route**. The map draws the mapped path; a dashed connector, when shown, is only an estimate from the GPS start to the nearest graph node.
 
-The demo loads `api/src/data/geojson/campus-network-sample.geojson`. It currently has only two connected path edges, so routes are limited to the Agora, CICS, and Administration Building sample nodes. Other sample destinations may correctly return no route until their paths are mapped.
+The demo loads `api/src/data/geojson/campus-network-sample.geojson`. Its route lines and distances are illustrative, fabricated for UI demonstration, and have not been surveyed or verified against actual campus walkways. The map background is OpenStreetMap; do not present the sample route line as a safe or accurate set of directions. Replace illustrative edges with verified campus path data before real navigation use.
 
 Navigation API:
 - `GET /api/v1/navigation/locations` lists graph nodes available as destinations.
