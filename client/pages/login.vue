@@ -67,14 +67,14 @@
             Sign in to your account
           </h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
-            Use your university email and password to continue.
+            Use the email and password you registered with. Guest accounts can use any valid email address.
           </p>
         </div>
 
         <form class="space-y-5" novalidate @submit.prevent="submit">
           <div>
             <label for="username" class="mb-2 block text-sm font-semibold text-slate-700">
-              University email
+              Email address
             </label>
             <input
               id="username"
@@ -83,7 +83,7 @@
               type="text"
               inputmode="email"
               autocomplete="username"
-              placeholder="name@msumain.edu.ph"
+              placeholder="name@example.com"
               :aria-invalid="Boolean(fieldErrors.username)"
               :aria-describedby="fieldErrors.username ? 'username-error' : undefined"
               class="block w-full rounded-xl border bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4"
@@ -174,8 +174,18 @@
           Continue with Google
         </a>
 
+        <p class="mt-6 text-center text-sm text-slate-600">
+          Don't have an account?
+          <NuxtLink
+            to="/auth/register"
+            class="font-semibold text-[#800000] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#800000]"
+          >
+            Create one
+          </NuxtLink>
+        </p>
+
         <p class="mt-6 text-center text-xs leading-5 text-slate-500">
-          Sign in with your MSU account to access campus services.
+          You can also continue with Google using your preferred account.
         </p>
       </div>
 
@@ -213,7 +223,7 @@ function validateForm(): boolean {
 
   const normalizedUsername = username.value.trim();
   if (!normalizedUsername) {
-    fieldErrors.username = 'Enter your university email.';
+    fieldErrors.username = 'Enter your email address.';
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedUsername)) {
     fieldErrors.username = 'Enter a valid email address.';
   }
