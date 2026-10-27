@@ -1,14 +1,27 @@
 import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FindRouteDto } from '../dto/find-route.dto';
 import { GraphNode } from '../interfaces/graph.interface';
-import { RouteSolution } from '../interfaces/route-solution.interface';
+import { FoundRoute, RouteSolution } from '../interfaces/route-solution.interface';
 import { GraphBuilderService } from './graph-builder.service';
 import { PathfindingService } from './pathfinding.service';
 
 const MAX_SNAP_DISTANCE_METERS = 500;
 const EARTH_RADIUS_METERS = 6_371_000;
+
+export interface CampusRoute extends FoundRoute {
+  snapStartNode: Pick<GraphNode, 'id' | 'name' | 'coordinates'>;
+  snapDistanceInMeters: number;
+  startConnectorCoordinates: [number, number][];
+}
+
+export interface StartTooFar {
+  found: false;
+  reason: 'START_TOO_FAR';
+  nearestNodeId: string;
+  snapDistanceInMeters: number;
+}
 
 function distanceBetweenCoordinates(
   first: [number, number],
@@ -39,7 +52,14 @@ export class CampusNavigationService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    const graphPath = join(__dirname, '../../../data/geojson/campus-network-sample.geojson');
+    const graphPath = [
+      join(__dirname, '../../../data/geojson/campus-network-sample.geojson'),
+      join(__dirname, '../../../../data/geojson/campus-network-sample.geojson'),
+    ].find(existsSync);
+    if (!graphPath) {
+      throw new Error('Unable to locate the bundled campus walking graph GeoJSON asset.');
+    }
+
     let graphData: unknown;
 
     try {
@@ -63,12 +83,7 @@ export class CampusNavigationService implements OnModuleInit {
     }));
   }
 
-  findRoute(request: FindRouteDto): RouteSolution | {
-    found: false;
-    reason: 'START_TOO_FAR';
-    nearestNodeId: string;
-    snapDistanceInMeters: number;
-  } {
+  findRoute(request: FindRouteDto): RouteSolution | CampusRoute | StartTooFar {
     this.ensureGraphLoaded();
     this.validateCoordinates(request.startLatitude, request.startLongitude);
 

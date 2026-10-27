@@ -48,6 +48,7 @@ describe('PathfindingService', () => {
         { nodeId: 'B', edgeId: 'CB', weight: 1, edgeType: 'PATH' },
         { nodeId: 'D', edgeId: 'BD', weight: 2, edgeType: 'PATH' },
       ],
+      coordinates: [[124.26, 8.0]],
       distanceInMeters: 5,
     });
   });
@@ -68,6 +69,7 @@ describe('PathfindingService', () => {
       destinationNodeId: 'A',
       nodeIds: ['A'],
       edges: [],
+      coordinates: [[124.26, 8.0]],
       distanceInMeters: 0,
     });
   });

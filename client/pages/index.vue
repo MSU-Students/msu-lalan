@@ -40,6 +40,7 @@
               v-model="destinationNodeId"
               class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
               :disabled="isLoadingLocations || locations.length === 0"
+              @change="clearRoute"
             >
               <option value="" disabled>
                 {{ isLoadingLocations ? 'Loading campus locations...' : 'Choose a mapped location' }}
@@ -327,6 +328,12 @@ const togglePickStart = () => {
   routeError.value = '';
 };
 
+const clearRoute = () => {
+  routeSummary.value = null;
+  routeError.value = '';
+  routeLayer?.clearLayers();
+};
+
 const findRoute = async () => {
   if (!startLocation.value || !destinationNodeId.value || isFindingRoute.value) return;
 
@@ -402,7 +409,8 @@ const findRoute = async () => {
       };
     }
 
-    mapInstance.fitBounds(L.latLngBounds(routeLatLngs), { padding: [40, 40] });
+    const visibleLatLngs = [...routeLatLngs, [startLocation.value.latitude, startLocation.value.longitude] as [number, number]];
+    mapInstance.fitBounds(L.latLngBounds(visibleLatLngs), { padding: [40, 40] });
   } catch (error) {
     console.error('Unable to find a walking route.', error);
     routeError.value = error instanceof Error ? error.message : 'Unable to find a route. Please try again.';

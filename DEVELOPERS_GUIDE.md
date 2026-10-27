@@ -356,6 +356,18 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
    - **Backend API**: `http://localhost:3001/api/v1`
    - **Swagger OpenAPI Documentation**: `http://localhost:3001/docs`
 
+### 7.3 Trying the Walking Route Demo
+
+1. Start the API and frontend using the development commands above.
+2. Open `http://localhost:3000` and allow browser location access, or choose **Or choose a start point on the map** and click near a mapped path.
+3. Select a destination and click **Find walking route**. The map draws the mapped path; a dashed connector, when shown, is only an estimate from the GPS start to the nearest graph node.
+
+The demo loads `api/src/data/geojson/campus-network-sample.geojson`. It currently has only two connected path edges, so routes are limited to the Agora, CICS, and Administration Building sample nodes. Other sample destinations may correctly return no route until their paths are mapped.
+
+Navigation API:
+- `GET /api/v1/navigation/locations` lists graph nodes available as destinations.
+- `POST /api/v1/navigation/route` accepts `startLatitude`, `startLongitude`, and `destinationNodeId`.
+
 ---
 
 ## 8. Testing Guide (Jest + TypeScript)
