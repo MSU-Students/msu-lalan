@@ -3,17 +3,27 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FindRouteDto } from '../dto/find-route.dto';
 import { GraphNode } from '../interfaces/graph.interface';
-import { FoundRoute, RouteSolution } from '../interfaces/route-solution.interface';
+import { FoundRoute, NoRoute } from '../interfaces/route-solution.interface';
 import { GraphBuilderService } from './graph-builder.service';
 import { PathfindingService } from './pathfinding.service';
 
 const MAX_SNAP_DISTANCE_METERS = 500;
 const EARTH_RADIUS_METERS = 6_371_000;
+const WALKING_SPEED_METERS_PER_MINUTE = 75;
+const MOTORCYCLE_SPEED_METERS_PER_MINUTE = 250;
+const RACAL_SPEED_METERS_PER_MINUTE = 200;
+const ESTIMATED_ROAD_DETOUR_FACTOR = 1.4;
 
 export interface CampusRoute extends FoundRoute {
   snapStartNode: Pick<GraphNode, 'id' | 'name' | 'coordinates'>;
   snapDistanceInMeters: number;
   startConnectorCoordinates: [number, number][];
+  travelTimeEstimates: {
+    walkingMinutes: number;
+    motorcycleMinutes: number;
+    racalMinutes: number;
+    estimatedRoadDistanceInMeters: number;
+  };
 }
 
 export interface StartTooFar {
@@ -83,7 +93,7 @@ export class CampusNavigationService implements OnModuleInit {
     }));
   }
 
-  findRoute(request: FindRouteDto): RouteSolution | CampusRoute | StartTooFar {
+  findRoute(request: FindRouteDto): CampusRoute | NoRoute | StartTooFar {
     this.ensureGraphLoaded();
     this.validateCoordinates(request.startLatitude, request.startLongitude);
 
@@ -111,7 +121,19 @@ export class CampusNavigationService implements OnModuleInit {
       nearestNode.id,
       request.destinationNodeId,
     );
-    if (!route.found) return route;
+    if (!route.found) {
+      return {
+        found: false,
+        startNodeId: route.startNodeId,
+        destinationNodeId: route.destinationNodeId,
+        reason: 'NO_ROUTE',
+      };
+    }
+    const directDistanceToDestination = distanceBetweenCoordinates(
+      startCoordinates,
+      this.graph.nodes.get(request.destinationNodeId)!.coordinates,
+    );
+    const estimatedRoadDistanceInMeters = directDistanceToDestination * ESTIMATED_ROAD_DETOUR_FACTOR;
 
     return {
       ...route,
@@ -122,6 +144,20 @@ export class CampusNavigationService implements OnModuleInit {
       },
       snapDistanceInMeters,
       startConnectorCoordinates: [startCoordinates, nearestNode.coordinates],
+      travelTimeEstimates: {
+        walkingMinutes: Math.max(
+          1,
+          Math.ceil(
+            (route.distanceInMeters + snapDistanceInMeters) / WALKING_SPEED_METERS_PER_MINUTE,
+          ),
+        ),
+        motorcycleMinutes: Math.max(
+          1,
+          Math.ceil(estimatedRoadDistanceInMeters / MOTORCYCLE_SPEED_METERS_PER_MINUTE),
+        ),
+        racalMinutes: Math.max(1, Math.ceil(estimatedRoadDistanceInMeters / RACAL_SPEED_METERS_PER_MINUTE)),
+        estimatedRoadDistanceInMeters,
+      },
     };
   }
 

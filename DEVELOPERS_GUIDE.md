@@ -362,7 +362,7 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
 2. Open `http://localhost:3000` and allow browser location access, or choose **Or choose a start point on the map** and click near a mapped path.
 3. Select a destination and click **Find walking route**. The map draws the mapped path; a dashed connector, when shown, is only an estimate from the GPS start to the nearest graph node.
 
-The demo loads `api/src/data/geojson/campus-network-sample.geojson`. Its route lines and distances are illustrative, fabricated for UI demonstration, and have not been surveyed or verified against actual campus walkways. The map background is OpenStreetMap; do not present the sample route line as a safe or accurate set of directions. Replace illustrative edges with verified campus path data before real navigation use.
+The demo loads `api/src/data/geojson/campus-network-sample.geojson`. It includes a Bolawan Hall pin from the supplied Google Maps link and illustrative connections to the current sample graph. Route lines and distances are for UI demonstration and have not been surveyed or verified against actual campus walkways. Walking times use a configured average speed; motor/racal times use straight-line distance with a road-detour factor and assumed speeds. These estimates are not road-routed and exclude traffic, stops, and waiting time. Do not present the sample routes or times as safe or accurate directions. Replace illustrative edges and assumptions with verified data before real navigation use.
 
 Navigation API:
 - `GET /api/v1/navigation/locations` lists graph nodes available as destinations.

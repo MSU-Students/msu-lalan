@@ -84,6 +84,19 @@
     {
       "type": "Feature",
       "properties": {
+        "id": "node-bolawan-hall",
+        "name": "Bolawan Hall Dormitory",
+        "nodeType": "LANDMARK",
+        "category": "Dormitory"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [124.2616116, 7.9950528]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "id": "edge-agora-cics",
         "sourceNodeId": "node-agora",
         "targetNodeId": "node-cics",
@@ -102,6 +115,33 @@
           [124.2629, 8.0040],
           [124.2631, 8.0042],
           [124.2635, 8.0042]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "edge-bolawan-agora",
+        "sourceNodeId": "node-bolawan-hall",
+        "targetNodeId": "node-agora",
+        "edgeType": "PEDESTRIAN_PATH",
+        "distanceInMeters": 1050,
+        "dataQuality": "ILLUSTRATIVE",
+        "isAccessibleForWheelchair": false,
+        "isBiDirectional": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [124.2616116, 7.9950528],
+          [124.26170, 7.99620],
+          [124.26178, 7.99735],
+          [124.26190, 7.99850],
+          [124.26202, 7.99965],
+          [124.26216, 8.00080],
+          [124.26228, 8.00195],
+          [124.26240, 8.00285],
+          [124.2621, 8.0035]
         ]
       }
     },

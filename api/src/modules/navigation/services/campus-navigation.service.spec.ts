@@ -17,7 +17,7 @@ describe('CampusNavigationService', () => {
 
   it('loads graph locations and routes between connected campus nodes', () => {
     const locations = service.getLocations();
-    expect(locations).toHaveLength(5);
+    expect(locations).toHaveLength(6);
 
     const route = service.findRoute({
       startLatitude: 8.0035,
@@ -38,6 +38,27 @@ describe('CampusNavigationService', () => {
       [124.2631, 8.0042],
       [124.2635, 8.0042],
     ]);
+  });
+
+  it('routes from the Bolawan Hall demo pin to CICS with clearly illustrative path data', () => {
+    const route = service.findRoute({
+      startLatitude: 7.9950528,
+      startLongitude: 124.2616116,
+      destinationNodeId: 'node-cics',
+    });
+
+    expect(route.found).toBe(true);
+    if (!route.found) return;
+    expect(route.nodeIds).toEqual(['node-bolawan-hall', 'node-agora', 'node-cics']);
+    expect(route.dataQuality).toBe('ILLUSTRATIVE');
+    expect(route.distanceInMeters).toBe(1225.4);
+    expect(route.travelTimeEstimates).toMatchObject({
+      walkingMinutes: 17,
+      motorcycleMinutes: expect.any(Number),
+      racalMinutes: expect.any(Number),
+    });
+    expect(route.travelTimeEstimates.motorcycleMinutes).toBeGreaterThan(0);
+    expect(route.travelTimeEstimates.racalMinutes).toBeGreaterThan(0);
   });
 
   it('returns no route for a destination not connected in the sample graph', () => {

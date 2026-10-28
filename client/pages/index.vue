@@ -19,6 +19,13 @@
           </button>
           <button
             type="button"
+            @click="useBolawanHallAsStart"
+            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Use Bolawan Hall as start (demo)
+          </button>
+          <button
+            type="button"
             :class="isPickingStart ? 'border-msu-maroon bg-red-50 text-msu-maroon' : 'border-slate-200 bg-white text-slate-700'"
             class="w-full rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50"
             @click="togglePickStart"
@@ -27,13 +34,23 @@
           </button>
 
           <p v-if="startLocation" class="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800" role="status">
-            Start set: {{ startLocation.latitude.toFixed(5) }}, {{ startLocation.longitude.toFixed(5) }}
+            <span class="font-semibold">{{ startLocation.label }}</span><br />
+            {{ startLocation.latitude.toFixed(5) }}, {{ startLocation.longitude.toFixed(5) }}
           </p>
           <p v-else class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
             Allow location access, or choose a start point on the map.
           </p>
 
           <div>
+            <label for="destination-search" class="mb-1 block text-xs font-semibold text-slate-700">Search destinations</label>
+            <input
+              id="destination-search"
+              v-model="destinationSearch"
+              type="search"
+              placeholder="Type a campus place"
+              class="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              :disabled="isLoadingLocations"
+            />
             <label for="destination" class="mb-1 block text-xs font-semibold text-slate-700">Destination</label>
             <select
               id="destination"
@@ -45,7 +62,7 @@
               <option value="" disabled>
                 {{ isLoadingLocations ? 'Loading campus locations...' : 'Choose a mapped location' }}
               </option>
-              <option v-for="location in locations" :key="location.id" :value="location.id">
+              <option v-for="location in filteredLocations" :key="location.id" :value="location.id">
                 {{ location.name }}{{ location.hasOutgoingRoute ? '' : ' (no connected paths yet)' }}
               </option>
             </select>
@@ -79,6 +96,23 @@
             <p>Mapped route: {{ formatDistance(routeSummary.distanceInMeters) }}</p>
             <p v-if="routeSummary.dataQuality === 'ILLUSTRATIVE'" class="mt-1 font-bold">
               Illustrative demo path — not surveyed or verified on campus.
+            </p>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div class="rounded-md bg-white/70 p-2">
+                <p class="text-[10px] font-medium uppercase">Walk</p>
+                <p class="font-bold">{{ formatMinutes(routeSummary.travelTimeEstimates.walkingMinutes) }}</p>
+              </div>
+              <div class="rounded-md bg-white/70 p-2">
+                <p class="text-[10px] font-medium uppercase">Motor</p>
+                <p class="font-bold">~{{ formatMinutes(routeSummary.travelTimeEstimates.motorcycleMinutes) }}</p>
+              </div>
+              <div class="rounded-md bg-white/70 p-2">
+                <p class="text-[10px] font-medium uppercase">Racal</p>
+                <p class="font-bold">~{{ formatMinutes(routeSummary.travelTimeEstimates.racalMinutes) }}</p>
+              </div>
+            </div>
+            <p class="mt-2 text-[10px] leading-4">
+              Motor/racal times use rough speed and road-detour assumptions; they are not road-routed and exclude traffic or waiting time.
             </p>
             <p v-if="routeSummary.snapDistanceInMeters > 10" class="mt-1 text-xs">
               Nearest mapped path is about {{ formatDistance(routeSummary.snapDistanceInMeters) }} from your start.
@@ -158,6 +192,32 @@
             Zoom: {{ mapStore.zoom }}x
           </div>
         </div>
+        <div class="mb-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            @click="zoomMap(1)"
+            class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            aria-label="Zoom in on map"
+          >
+            + Zoom in
+          </button>
+          <button
+            type="button"
+            @click="zoomMap(-1)"
+            class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            aria-label="Zoom out on map"
+          >
+            − Zoom out
+          </button>
+          <button
+            v-if="startLocation"
+            type="button"
+            @click="centerMapOnStart"
+            class="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Center on start
+          </button>
+        </div>
         <div
           class="mb-3 rounded-lg border px-3 py-2 text-xs"
           :class="isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'"
@@ -180,7 +240,11 @@
 
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
-          <div id="msu-map-container" class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"></div>
+          <div
+            id="msu-map-container"
+            class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"
+            :class="{ 'cursor-crosshair': isPickingStart }"
+          ></div>
           <template #fallback>
             <div class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 text-sm">
               Loading Leaflet Campus Canvas...
@@ -193,8 +257,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import type { LayerGroup, Map as LeafletMap } from 'leaflet';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import type { CircleMarker, LayerGroup, Map as LeafletMap } from 'leaflet';
 import { useMapStore } from '../stores/map';
 import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import { usePilarStore } from '~/stores/pilar';
@@ -209,19 +273,31 @@ interface CampusLocation {
   hasOutgoingRoute: boolean;
 }
 
-interface RouteApiResult {
-  found: boolean;
-  reason?: 'NO_ROUTE' | 'START_TOO_FAR';
-  distanceInMeters?: number;
-  dataQuality?: 'ILLUSTRATIVE' | 'VERIFIED';
-  coordinates?: [number, number][];
-  snapDistanceInMeters?: number;
-  startConnectorCoordinates?: [number, number][];
-  destinationNodeId?: string;
+interface RouteApiFailure {
+  found: false;
+  reason: 'NO_ROUTE' | 'START_TOO_FAR';
 }
+
+interface RouteApiSuccess {
+  found: true;
+  distanceInMeters: number;
+  dataQuality: 'ILLUSTRATIVE' | 'VERIFIED';
+  coordinates: [number, number][];
+  snapDistanceInMeters: number;
+  startConnectorCoordinates: [number, number][];
+  travelTimeEstimates: {
+    walkingMinutes: number;
+    motorcycleMinutes: number;
+    racalMinutes: number;
+    estimatedRoadDistanceInMeters: number;
+  };
+}
+
+type RouteApiResult = RouteApiFailure | RouteApiSuccess;
 
 let mapInstance: LeafletMap | null = null;
 let routeLayer: LayerGroup | null = null;
+let startMarker: CircleMarker | null = null;
 const isOnline = ref(true);
 const serviceWorkerControlled = ref(false);
 const cachedTileCount = ref(0);
@@ -229,7 +305,8 @@ const tileLoadErrors = ref(0);
 const cacheStatusError = ref('');
 const locations = ref<CampusLocation[]>([]);
 const destinationNodeId = ref('');
-const startLocation = ref<{ latitude: number; longitude: number } | null>(null);
+const destinationSearch = ref('');
+const startLocation = ref<{ latitude: number; longitude: number; label: string } | null>(null);
 const isLoadingLocations = ref(false);
 const isFindingLocation = ref(false);
 const isFindingRoute = ref(false);
@@ -240,9 +317,17 @@ const routeSummary = ref<{
   distanceInMeters: number;
   snapDistanceInMeters: number;
   dataQuality: 'ILLUSTRATIVE' | 'VERIFIED';
+  travelTimeEstimates: NonNullable<RouteApiResult['travelTimeEstimates']>;
 } | null>(null);
 let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
 const apiBaseUrl = useRuntimeConfig().public.apiBaseUrl;
+
+const filteredLocations = computed(() => {
+  const search = destinationSearch.value.trim().toLowerCase();
+  return search
+    ? locations.value.filter((location) => location.name.toLowerCase().includes(search))
+    : locations.value;
+});
 
 const pageTitle = 'MSU Marawi Campus'; 
 const campusAddress = 'Marawi City, Lanao del Sur 8.0035° N, 124.2621° E';
@@ -298,14 +383,31 @@ const loadLocations = async () => {
   }
 };
 
-const setStartLocation = (latitude: number, longitude: number) => {
-  startLocation.value = { latitude, longitude };
+const setStartLocation = (latitude: number, longitude: number, label = 'Selected map point') => {
+  startLocation.value = { latitude, longitude, label };
   routeSummary.value = null;
   routeError.value = '';
   if (routeLayer && mapInstance) {
     routeLayer.clearLayers();
   }
+  if (mapInstance) {
+    void import('leaflet').then(({ default: L }) => {
+      if (!mapInstance) return;
+      startMarker?.remove();
+      startMarker = L.circleMarker([latitude, longitude], {
+        radius: 8,
+        color: '#ffffff',
+        weight: 3,
+        fillColor: '#2563eb',
+        fillOpacity: 1,
+      }).bindPopup(label).addTo(mapInstance);
+    });
+  }
   mapInstance?.setView([latitude, longitude], Math.max(mapInstance.getZoom(), 17));
+};
+
+const useBolawanHallAsStart = () => {
+  setStartLocation(7.9950528, 124.2616116, 'Bolawan Hall Dormitory (demo pin)');
 };
 
 const useCurrentLocation = () => {
@@ -318,7 +420,7 @@ const useCurrentLocation = () => {
   routeError.value = '';
   navigator.geolocation.getCurrentPosition(
     ({ coords }) => {
-      setStartLocation(coords.latitude, coords.longitude);
+      setStartLocation(coords.latitude, coords.longitude, 'Your current location');
       isFindingLocation.value = false;
     },
     (error) => {
@@ -373,7 +475,7 @@ const findRoute = async () => {
       return;
     }
 
-    if (!mapInstance || !routeLayer || !result.coordinates?.length) {
+    if (!mapInstance || !routeLayer || result.coordinates.length === 0) {
       throw new Error('The map is not ready to display the route. Please reload and try again.');
     }
 
@@ -387,7 +489,7 @@ const findRoute = async () => {
       lineJoin: 'round',
     }).addTo(routeLayer);
 
-    if (result.startConnectorCoordinates && (result.snapDistanceInMeters ?? 0) > 10) {
+    if (result.snapDistanceInMeters > 10) {
       const connectorLatLngs = result.startConnectorCoordinates
         .map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
       L.polyline(connectorLatLngs, {
@@ -406,17 +508,19 @@ const findRoute = async () => {
     }).bindPopup('Your start location').addTo(routeLayer);
 
     const destination = locations.value.find((location) => location.id === destinationNodeId.value);
-    if (destination) {
-      L.marker([destination.coordinates[1], destination.coordinates[0]])
-        .bindPopup(destination.name)
-        .addTo(routeLayer);
-      routeSummary.value = {
-        destinationName: destination.name,
-        distanceInMeters: result.distanceInMeters ?? 0,
-        snapDistanceInMeters: result.snapDistanceInMeters ?? 0,
-        dataQuality: result.dataQuality ?? 'ILLUSTRATIVE',
-      };
+    if (!destination) {
+      throw new Error('The selected destination is no longer available. Reload the destination list and try again.');
     }
+    L.marker([destination.coordinates[1], destination.coordinates[0]])
+      .bindPopup(destination.name)
+      .addTo(routeLayer);
+    routeSummary.value = {
+      destinationName: destination.name,
+      distanceInMeters: result.distanceInMeters,
+      snapDistanceInMeters: result.snapDistanceInMeters,
+      dataQuality: result.dataQuality,
+      travelTimeEstimates: result.travelTimeEstimates,
+    };
 
     const visibleLatLngs = [...routeLatLngs, [startLocation.value.latitude, startLocation.value.longitude] as [number, number]];
     mapInstance.fitBounds(L.latLngBounds(visibleLatLngs), { padding: [40, 40] });
@@ -430,6 +534,22 @@ const findRoute = async () => {
 
 const formatDistance = (meters: number) =>
   meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${Math.round(meters)} m`;
+
+const formatMinutes = (minutes: number) =>
+  minutes === 1 ? '1 min' : `${minutes} min`;
+
+const zoomMap = (delta: number) => {
+  if (delta > 0) mapInstance?.zoomIn();
+  else mapInstance?.zoomOut();
+};
+
+const centerMapOnStart = () => {
+  if (!startLocation.value) return;
+  mapInstance?.flyTo(
+    [startLocation.value.latitude, startLocation.value.longitude],
+    Math.max(mapInstance.getZoom(), 17),
+  );
+};
 
 const initMap = async () => {
   if (typeof window === 'undefined') return;
@@ -445,7 +565,7 @@ const initMap = async () => {
   routeLayer = L.layerGroup().addTo(mapInstance);
   mapInstance.on('click', (event) => {
     if (!isPickingStart.value) return;
-    setStartLocation(event.latlng.lat, event.latlng.lng);
+    setStartLocation(event.latlng.lat, event.latlng.lng, 'Selected map point');
     isPickingStart.value = false;
   });
 
