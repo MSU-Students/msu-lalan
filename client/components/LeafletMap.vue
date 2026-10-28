@@ -25,11 +25,59 @@ const mapContainer = ref<HTMLDivElement | null>(null);
 let mapInstance: LeafletMapInstance | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
+const isOnline = ref(true);
+const serviceWorkerControlled = ref(false);
+const cachedTileCount = ref(0);
+const tileLoadErrors = ref(0);
+const cacheStatusError = ref('');
+let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
+
 const handleResize = () => {
   mapInstance?.invalidateSize({ pan: false });
 };
 
+const refreshTileCacheStatus = async () => {
+  try {
+    const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
+    const status = await getMapTileCacheStatus(
+      typeof navigator !== 'undefined'
+        ? navigator.serviceWorker?.controller ?? null
+        : null,
+      cacheStorage,
+    );
+
+    serviceWorkerControlled.value = status.serviceWorkerControlled;
+    cachedTileCount.value = status.tileCount;
+    cacheStatusError.value = '';
+  } catch (error) {
+    console.error('Unable to inspect the offline map tile cache.', error);
+    cacheStatusError.value =
+      'Unable to inspect the offline map cache. Check browser storage permissions and reload.';
+  }
+};
+
+const scheduleTileCacheStatusRefresh = () => {
+  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
+  cacheStatusTimer = setTimeout(refreshTileCacheStatus, 500);
+};
+
+const updateNetworkStatus = () => {
+  isOnline.value = navigator.onLine;
+};
+
 onMounted(async () => {
+  isOnline.value = navigator.onLine;
+  window.addEventListener('online', updateNetworkStatus);
+  window.addEventListener('offline', updateNetworkStatus);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      refreshTileCacheStatus,
+    );
+  }
+  void refreshTileCacheStatus();
+
   const { default: L } = await import('leaflet');
   const container = mapContainer.value;
   if (!container) return;
@@ -41,9 +89,14 @@ onMounted(async () => {
   mapInstance = map;
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+})
+  .on('tileload', scheduleTileCacheStatusRefresh)
+  .on('tileerror', () => {
+    tileLoadErrors.value += 1;
+  })
+  .addTo(map);
 
   props.markers.forEach((marker) => {
     L.marker(marker.coords)
@@ -84,6 +137,17 @@ function focusAnchor(anchor: CampusMapMarker) {
 defineExpose({ focusAnchor });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('online', updateNetworkStatus);
+  window.removeEventListener('offline', updateNetworkStatus);
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.removeEventListener(
+      'controllerchange',
+      refreshTileCacheStatus,
+    );
+  }
+
+  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
   resizeObserver?.disconnect();
   window.removeEventListener('resize', handleResize);
   mapInstance?.remove();
