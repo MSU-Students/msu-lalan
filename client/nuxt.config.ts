@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { MAP_TILE_CACHE_NAME } from './utils/map-tile-cache';
+
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: false },
@@ -37,29 +39,43 @@ export default defineNuxtConfig({
           src: '/icon-192.png',
           sizes: '192x192',
           type: 'image/png',
+          purpose: 'any',
         },
         {
           src: '/icon-512.png',
           sizes: '512x512',
           type: 'image/png',
+          purpose: 'any maskable',
         },
       ],
     },
     workbox: {
-      navigateFallback: '/',
+      navigateFallback: null,
       globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
       runtimeCaching: [
         {
-          urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
-          handler: 'CacheFirst',
+          urlPattern: ({ request, url }) => request.mode === 'navigate' && url.pathname === '/',
+          handler: 'NetworkFirst',
           options: {
-            cacheName: 'osm-map-tiles-cache',
+            cacheName: 'app-shell-cache',
+            networkTimeoutSeconds: 3,
+            expiration: {
+              maxEntries: 1,
+              maxAgeSeconds: 60 * 60 * 24,
+            },
+          },
+        },
+        {
+          urlPattern: /^https:\/\/[a-c]\.tile\.openstreetmap\.org\/.*/i,
+          handler: 'StaleWhileRevalidate',
+          options: {
+            cacheName: MAP_TILE_CACHE_NAME,
             expiration: {
               maxEntries: 1000,
-              maxAgeSeconds: 60 * 60 * 24 * 30, // 30 Days cache for offline maps
+              maxAgeSeconds: 60 * 60 * 24 * 15,
             },
             cacheableResponse: {
-              statuses: [0, 200],
+              statuses: [200],
             },
           },
         },

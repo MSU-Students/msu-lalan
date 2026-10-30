@@ -17,10 +17,14 @@ import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiUnauthorizedResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiConflictResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
@@ -37,6 +41,21 @@ export class AuthController {
     private authService: AuthService,
     private configService: ConfigService,
   ) {}
+
+  @ApiOperation({ summary: 'Register a new guest account with email and password' })
+  @ApiCreatedResponse({ description: 'Account created with the GUEST role' })
+  @ApiBadRequestResponse({ description: 'Invalid registration details' })
+  @ApiConflictResponse({ description: 'An account with this email already exists' })
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() registerDto: RegisterDto) {
+    const user = await this.authService.registerGuest(registerDto);
+    return {
+      statusCode: HttpStatus.CREATED,
+      message: 'Registration successful. You can now sign in.',
+      data: user,
+    };
+  }
 
   @ApiOperation({ summary: 'Sign in with username and password' })
   @ApiOkResponse({ type: AuthResponseDto })
@@ -58,14 +77,21 @@ export class AuthController {
   @ApiOperation({ summary: 'Initiate Google OAuth 2.0 login' })
   @Get('google')
   @UseGuards(GoogleAuthGuard)
-  async googleAuth() {
-    // Initiates Passport Google OAuth2 redirect flow
+  async googleAuth(@Res() res: Response) {
+    if (!res.headersSent) {
+      return res.redirect(this.googleAuthFailureUrl());
+    }
+
+    return res;
   }
 
   @ApiOperation({ summary: 'Google OAuth 2.0 callback URL' })
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() req: any, @Res() res: Response) {
+    if (!req.user) {
+      return res.redirect(this.googleAuthFailureUrl());
+    }
     const authData = await this.authService.generateTokens(req.user as User);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
 
@@ -77,6 +103,10 @@ export class AuthController {
     );
   }
 
+  private googleAuthFailureUrl(): string {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    return `${frontendUrl.replace(/\/$/, '')}/auth/callback?error=google_auth_failed`;
+  }
   @ApiOperation({ summary: 'Refresh the current session and rotate its refresh token' })
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, expired, or revoked refresh token' })

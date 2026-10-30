@@ -68,6 +68,25 @@
             Zoom: {{ mapStore.zoom }}x
           </div>
         </div>
+        <div
+          class="mb-3 rounded-lg border px-3 py-2 text-xs"
+          :class="isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="font-semibold">{{ isOnline ? 'Online' : 'Offline' }}</p>
+          <p v-if="cacheStatusError">{{ cacheStatusError }}</p>
+          <p v-else-if="!serviceWorkerControlled">
+            Offline tile caching is not active on this page. Open the production app over localhost or HTTPS, then reload after the service worker installs.
+          </p>
+          <p v-else-if="cachedTileCount === 0">
+            No map tiles are cached yet. Browse the map while online; only areas you have viewed are available offline.
+          </p>
+          <p v-else>{{ cachedTileCount }} map tiles cached. Previously viewed areas can render offline; uncached areas may be blank.</p>
+          <p v-if="tileLoadErrors > 0" class="mt-1">
+            Some tiles could not load. If offline, those areas may not be cached; reconnect and view them to cache them.
+          </p>
+        </div>
 
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
@@ -93,6 +112,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useMapStore } from '../stores/map';
+import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import { usePilarStore } from '~/stores/pilar';
 import LeafletMap from '~/components/LeafletMap.vue';
 import type { CampusMapMarker } from '~/types';
@@ -115,6 +135,31 @@ const sampleAnchors = ref<CampusMapMarker[]>([
   { id: '4', name: 'Dimaporo Gymnasium', category: 'Sports', coords: [8.0028, 124.2605] },
   { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
 ]);
+
+const refreshTileCacheStatus = async () => {
+  try {
+    const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
+    const status = await getMapTileCacheStatus(
+      typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller ?? null : null,
+      cacheStorage,
+    );
+    serviceWorkerControlled.value = status.serviceWorkerControlled;
+    cachedTileCount.value = status.tileCount;
+    cacheStatusError.value = '';
+  } catch (error) {
+    console.error('Unable to inspect the offline map tile cache.', error);
+    cacheStatusError.value = 'Unable to inspect the offline map cache. Check browser storage permissions and reload.';
+  }
+};
+
+const scheduleTileCacheStatusRefresh = () => {
+  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
+  cacheStatusTimer = setTimeout(refreshTileCacheStatus, 500);
+};
+
+const updateNetworkStatus = () => {
+  isOnline.value = navigator.onLine;
+};
 
 const focusAnchor = (anchor: CampusMapMarker) => {
   mapComponent.value?.focusAnchor(anchor);

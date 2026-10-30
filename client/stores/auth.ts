@@ -1,5 +1,27 @@
 import { defineStore } from 'pinia';
-import { UserRole, type AuthUser } from '../types';
+import { UserRole, type AuthUser, type RegisterPayload, type RegisterResult } from '../types';
+
+interface LoginResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+function isLoginResponse(value: unknown): value is LoginResponse {
+  if (!value || typeof value !== 'object') return false;
+
+  const response = value as Record<string, unknown>;
+  const user = response.user;
+  if (!user || typeof user !== 'object') return false;
+
+  const authUser = user as Record<string, unknown>;
+  return (
+    typeof response.accessToken === 'string' &&
+    typeof authUser.id === 'string' &&
+    typeof authUser.email === 'string' &&
+    Object.values(UserRole).includes(authUser.role as UserRole) &&
+    typeof authUser.isInstitutionalEmail === 'boolean'
+  );
+}
 
 export interface AuthState {
   token: string | null;
@@ -22,6 +44,7 @@ export const useAuthStore = defineStore('auth', {
     isSuperAdmin: (state): boolean => state.user?.role === UserRole.SUPER_ADMIN,
     isCampusAdmin: (state): boolean =>
       state.user?.role === UserRole.CAMPUS_ADMIN || state.user?.role === UserRole.SUPER_ADMIN,
+    isGuest: (state): boolean => state.user?.role === UserRole.GUEST,
     hasInstitutionalEmail: (state): boolean => !!state.user?.isInstitutionalEmail,
     displayName: (state): string => {
       if (!state.user) return 'Guest';
@@ -33,6 +56,44 @@ export const useAuthStore = defineStore('auth', {
   },
 
   actions: {
+    async login(username: string, password: string, apiBaseUrl: string): Promise<void> {
+      let response: Response;
+      try {
+        response = await fetch(`${apiBaseUrl}/auth/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+      } catch {
+        throw new Error('Unable to connect. Check your internet connection and try again.');
+      }
+
+      if (response.status === 401) {
+        throw new Error('The email or password you entered is incorrect.');
+      }
+      if (response.status === 400) {
+        throw new Error('Enter a valid university email and password.');
+      }
+      if (!response.ok) {
+        throw new Error('Sign-in is temporarily unavailable. Please try again.');
+      }
+
+      let payload: unknown;
+      try {
+        payload = await response.json();
+      } catch {
+        throw new Error('The sign-in service returned an unexpected response.');
+      }
+
+      if (!isLoginResponse(payload)) {
+        throw new Error('The sign-in service returned an unexpected response.');
+      }
+
+      this.setAuth(payload.accessToken, payload.user);
+      this.scheduleRefresh(apiBaseUrl);
+    },
+
     setToken(token: string) {
       this.token = token;
       this.isAuthenticated = true;
@@ -48,6 +109,52 @@ export const useAuthStore = defineStore('auth', {
     setAuth(token: string, user: AuthUser) {
       this.setToken(token);
       this.setUser(user);
+    },
+
+    /**
+     * Creates a guest account via POST /auth/register. It does not sign the user in;
+     * the user logs in afterwards with the credentials they registered.
+     */
+    async register(apiBaseUrl: string, payload: RegisterPayload): Promise<RegisterResult> {
+      let response: Response;
+      try {
+        response = await fetch(`${apiBaseUrl}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {
+        return {
+          success: false,
+          message: 'Could not reach the server. Check your connection and try again.',
+        };
+      }
+
+      let json: { message?: string | string[] } | null = null;
+      try {
+        json = await response.json();
+      } catch {
+        // Non-JSON error body; fall back to a generic message below.
+      }
+
+      if (response.ok) {
+        return {
+          success: true,
+          message:
+            (typeof json?.message === 'string' && json.message) ||
+            'Registration successful. You can now sign in.',
+          status: response.status,
+        };
+      }
+
+      let message = 'Registration failed. Please try again.';
+      if (response.status === 409) {
+        message = 'An account with this email already exists. Try signing in instead.';
+      } else if (response.status === 400) {
+        const detail = Array.isArray(json?.message) ? json?.message.join(' ') : json?.message;
+        message = detail ? `Please check your details: ${detail}` : 'Please check your details and try again.';
+      }
+      return { success: false, message, status: response.status };
     },
 
     async logout(apiBaseUrl?: string) {

@@ -47,7 +47,13 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 
 onMounted(async () => {
-  const token = route.query.token as string;
+  if (route.query.error) {
+    error.value = 'Google sign-in was cancelled or could not be completed. Please try again.';
+    loading.value = false;
+    return;
+  }
+
+  const token = typeof route.query.token === 'string' ? route.query.token : null;
   if (!token) {
     error.value = 'No access token received from authentication server.';
     loading.value = false;
@@ -55,8 +61,6 @@ onMounted(async () => {
   }
 
   try {
-    authStore.setToken(token);
-
     // Fetch user profile from API /auth/me
     const response = await fetch(`${config.public.apiBaseUrl}/auth/me`, {
       headers: {
@@ -69,6 +73,7 @@ onMounted(async () => {
     }
 
     const json = await response.json();
+    authStore.setAuth(token, json.data);
     authStore.setUser(json.data);
     authStore.scheduleRefresh(config.public.apiBaseUrl);
     loading.value = false;
@@ -77,8 +82,8 @@ onMounted(async () => {
     setTimeout(() => {
       router.push('/');
     }, 1000);
-  } catch (err: any) {
-    error.value = err.message || 'Authentication error occurred.';
+  } catch (err: unknown) {
+    error.value = err instanceof Error ? err.message : 'Authentication error occurred.';
     loading.value = false;
   }
 });

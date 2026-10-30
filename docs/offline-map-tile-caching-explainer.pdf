@@ -1,0 +1,254 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 4 0 R >>
+endobj
+2 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+4 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 4 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 2 0 R /F2 3 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 4036 >>
+stream
+0.88 0.67 0.24 rg
+0 784 612 8 re f
+0.3 0.04 0.1 rg
+0 668 612 116 re f
+0.88 0.67 0.24 rg
+BT /F2 9 Tf 42 756 Td (PROJECT EXPLAINER) Tj ET
+1 1 1 rg
+BT /F2 25 Tf 42 719 Td (Offline map tiles) Tj ET
+1 1 1 rg
+BT /F1 10 Tf 42 698 Td (What changed, how it behaves, and why it matters) Tj ET
+0.88 0.67 0.24 RG 0.7 w 42 39 m 570 39 l S
+0.35 0.4 0.47 rg
+BT /F1 8 Tf 42 21 Td (MSU Lalan | Offline map tile caching) Tj ET
+0.35 0.4 0.47 rg
+BT /F2 8 Tf 548 21 Td (1) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 11 Tf 42 636 Td (The goal is to let the campus map reuse tiles the user has already loaded when the network) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 11 Tf 42 620 Td (is unavailable. It also makes the cache visible, so the user can tell whether offline) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 11 Tf 42 604 Td (support is actually active.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 42 576 Td (01) Tj ET
+0.12 0.16 0.22 rg
+BT /F2 15 Tf 70 573 Td (How the tile cache works) Tj ET
+0.96 0.97 0.98 rg
+42 445 168 116 re f
+0.88 0.67 0.24 rg
+42 557 168 4 re f
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 54 537 Td (1. Request) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 518 Td (Leaflet requests map tiles from) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 506 Td (the OpenStreetMap tile servers) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 494 Td (as the map is viewed.) Tj ET
+0.96 0.97 0.98 rg
+222 445 168 116 re f
+0.88 0.67 0.24 rg
+222 557 168 4 re f
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 234 537 Td (2. Reuse + refresh) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 234 518 Td (Workbox returns a cached tile) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 234 506 Td (promptly and refreshes it in) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 234 494 Td (the background when online.) Tj ET
+0.96 0.97 0.98 rg
+402 445 168 116 re f
+0.88 0.67 0.24 rg
+402 557 168 4 re f
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 414 537 Td (3. Offline use) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 414 518 Td (With no connection, previously) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 414 506 Td (cached tiles can still be used.) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 414 494 Td (New areas are not preloaded.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 42 418 Td (02) Tj ET
+0.12 0.16 0.22 rg
+BT /F2 15 Tf 70 415 Td (Changes made) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 9.5 Tf 48 393.5 Td (- Caching strategy:) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 394 Td (The Workbox rule uses StaleWhileRevalidate for OSM tiles: cached content is available) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 382 Td (quickly, and online requests update it in the background.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 9.5 Tf 48 365.5 Td (- Bounded cache:) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 366 Td (The stable cache name is osm-map-tiles-cache. It holds at most 1,000 tiles, with a) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 354 Td (15-day lifetime. This bounds storage while allowing reuse across app updates.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 9.5 Tf 48 337.5 Td (- Successful responses only:) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 338 Td (Leaflet requests tiles in CORS mode, and Workbox only stores HTTP 200 responses. Failed) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 326 Td (requests are not treated as valid cached map images.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 9.5 Tf 48 309.5 Td (- Visible diagnostics:) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 310 Td (The map reports online/offline state, whether a service worker controls the page,) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 298 Td (cached tile count, and tile-load warnings.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 9.5 Tf 48 281.5 Td (- Test support:) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 282 Td (A helper reads Cache Storage without creating an empty cache. Unit tests cover an) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 164 270 Td (uncontrolled page, empty cache, cached tile count, and storage errors.) Tj ET
+1.0 0.97 0.88 rg
+42 59 528 43 re f
+0.3 0.04 0.1 rg
+BT /F2 9 Tf 54 84 Td (KEY LIMIT) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 116 85 Td (Offline coverage is limited to tiles the user has already viewed. This is not a pre-downloaded) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 116 73 Td (map of the whole campus.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 4 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 2 0 R /F2 3 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 4557 >>
+stream
+0.88 0.67 0.24 rg
+0 784 612 8 re f
+0.3 0.04 0.1 rg
+0 668 612 116 re f
+0.88 0.67 0.24 rg
+BT /F2 9 Tf 42 756 Td (DEMONSTRATION GUIDE) Tj ET
+1 1 1 rg
+BT /F2 25 Tf 42 719 Td (How to verify it) Tj ET
+1 1 1 rg
+BT /F1 10 Tf 42 698 Td (A short test flow and a professor-friendly summary) Tj ET
+0.88 0.67 0.24 RG 0.7 w 42 39 m 570 39 l S
+0.35 0.4 0.47 rg
+BT /F1 8 Tf 42 21 Td (MSU Lalan | Offline map tile caching) Tj ET
+0.35 0.4 0.47 rg
+BT /F2 8 Tf 548 21 Td (2) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 42 636 Td (03) Tj ET
+0.12 0.16 0.22 rg
+BT /F2 15 Tf 70 633 Td (Verify the behavior) Tj ET
+0.96 0.97 0.98 rg
+42 553 528 68 re f
+0.3 0.04 0.1 rg
+42 553 34 68 re f
+1 1 1 rg
+BT /F2 15 Tf 54 585 Td (1) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 10 Tf 89 602 Td (Build and preview) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 586.5 Td (From the repository root, run npm run build:client, then npm run preview --workspace=client. Open the local) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 575.5 Td (URL printed by the preview command. Service-worker caching is tested in the production preview, not the) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 564.5 Td (usual Nuxt dev server.) Tj ET
+0.91 0.96 0.93 rg
+42 476 528 68 re f
+0.3 0.04 0.1 rg
+42 476 34 68 re f
+1 1 1 rg
+BT /F2 15 Tf 54 508 Td (2) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 10 Tf 89 525 Td (Confirm control) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 509.5 Td (In the map status panel, confirm the service worker controls the page. If it does not, reload after the) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 498.5 Td (worker installs. Service workers need HTTPS, except localhost is allowed for local testing.) Tj ET
+0.96 0.97 0.98 rg
+42 399 528 68 re f
+0.3 0.04 0.1 rg
+42 399 34 68 re f
+1 1 1 rg
+BT /F2 15 Tf 54 431 Td (3) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 10 Tf 89 448 Td (Populate cache) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 432.5 Td (While online, pan or zoom the map. The panel should report a cached tile count. DevTools > Application >) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 421.5 Td (Cache Storage should show osm-map-tiles-cache.) Tj ET
+0.91 0.96 0.93 rg
+42 322 528 68 re f
+0.3 0.04 0.1 rg
+42 322 34 68 re f
+1 1 1 rg
+BT /F2 15 Tf 54 354 Td (4) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 10 Tf 89 371 Td (Go offline) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 355.5 Td (Use DevTools > Network > Offline and revisit an area already viewed. Cached tiles should still render. A) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 8.5 Tf 89 344.5 Td (never-viewed area can be blank; reconnect and view it to cache it.) Tj ET
+0.3 0.04 0.1 rg
+BT /F2 11 Tf 42 300 Td (04) Tj ET
+0.12 0.16 0.22 rg
+BT /F2 15 Tf 70 297 Td (Why this is important) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9.5 Tf 42 275.5 Td (A PWA configuration can claim offline support without proving that any map tile was saved. The visible) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9.5 Tf 42 262.5 Td (diagnostics make setup problems easier to spot; response filtering avoids caching failed tile responses; and) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9.5 Tf 42 249.5 Td (the size/age limits manage browser storage. Together, these changes improve resilience and make the feature) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9.5 Tf 42 236.5 Td (demonstrable.) Tj ET
+1.0 0.97 0.88 rg
+42 161 528 66 re f
+0.3 0.04 0.1 rg
+BT /F2 9 Tf 54 209 Td (PRESENTATION SUMMARY) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 192 Td ("We cache map tiles as the user views the map. Online, cached tiles are refreshed in the background; offline,) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 180 Td (previously viewed areas remain available. The map shows whether caching is active and how many tiles are) Tj ET
+0.12 0.16 0.22 rg
+BT /F1 9 Tf 54 168 Td (stored, but it does not promise offline coverage for areas that were never loaded.") Tj ET
+0.12 0.16 0.22 rg
+BT /F2 11 Tf 42 136 Td (Files changed) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 119.8 Td (- client/nuxt.config.ts - Workbox tile strategy, cache limits, and successful-response filter) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 107.8 Td (- client/pages/index.vue - network/cache status and tile failure messages on the map) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 95.8 Td (- client/utils/map-tile-cache.ts - shared cache name and status inspection helper) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 83.8 Td (- client/test/utils/map-tile-cache.spec.ts - unit tests for cache status behavior) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 71.8 Td (- client/test/tsconfig.json - Jest types scoped to test TypeScript files) Tj ET
+0.35 0.4 0.47 rg
+BT /F1 8.2 Tf 48 59.8 Td (- DEVELOPERS_GUIDE.md - offline caching behavior and limitations) Tj ET
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000134 00000 n 
+0000000209 00000 n 
+0000000272 00000 n 
+0000000408 00000 n 
+0000004496 00000 n 
+0000004632 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+9241
+%%EOF

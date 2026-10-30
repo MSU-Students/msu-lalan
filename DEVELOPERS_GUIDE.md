@@ -49,6 +49,12 @@ graph TB
     Nest -->|Graph Calculations| Turf
 ```
 
+### 1.2 Offline Map Tile Cache
+
+The Workbox service worker uses `StaleWhileRevalidate` for OpenStreetMap tiles. A cached tile is returned immediately, including when the device is offline, while successful online requests refresh it in the background. Leaflet requests tiles in CORS mode, and Workbox stores only HTTP 200 responses, so failed requests are not cached as valid tiles. The `osm-map-tiles-cache` is retained across service worker updates and limited to 1,000 tiles with a 15-day lifetime.
+
+The map displays whether the browser is online, whether the active service worker controls the page, the number of cached tiles, and a warning if tiles fail to load. Service workers require HTTPS in production; `localhost` is also supported for development. Offline availability is limited to map areas the user has already viewed, and the public OSM tile service must not be bulk-downloaded for offline coverage.
+
 ---
 
 ## 2. Monorepo Structure
@@ -255,6 +261,8 @@ erDiagram
 
 ## 6. Google OAuth 2.0 & Role-Based Access Control (RBAC)
 
+The frontend provides a username-and-password form at `/login`. It submits the university email as `username` to `POST /api/v1/auth/login`; the API returns an access token and user profile while setting the refresh token in an HTTP-only cookie. Google sign-in remains available as an alternative.
+
 ### 6.1 Google Cloud Console Setup Instructions
 1. Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project: **MSU Lalan Wayfinding**.
@@ -277,6 +285,31 @@ The `AuthService` validates the user's Google email against the institutional do
 - General users (guests, non-institutional emails) have read-only navigation and directory search privileges.
 
 ---
+
+### 6.3 Guest Registration (Issue #18)
+
+Guests can create an email/password account without Google. Registration does not sign the user in; they log in afterwards through `POST /auth/login`.
+
+- **Endpoint:** `POST /api/v1/auth/register` (public)
+- **Body:** `email`, `password` (8–72 bytes, at least one letter and one number), `firstName`, `lastName`. Any other field (for example `role`) is rejected with `400`.
+- **Result:** `201` with the new user (never the password or hash). The account always gets the `GUEST` role, assigned on the server. Admin roles can never be granted through registration.
+- **Errors:** `400` invalid input, `409` email already registered.
+- **Passwords:** hashed with bcrypt (cost 12 by default; optional `BCRYPT_ROUNDS` env var, 10–15).
+- **Frontend:** `/auth/register` page (`client/pages/auth/register.vue`), `register` action in `client/stores/auth.ts`, validation in `client/utils/registration.ts`. The `/auth/login` page comes from the login task (#19).
+
+**Guest permission policy.** `GUEST` has fewer permissions than `GENERAL_USER`. Today the only authenticated routes are `GET /auth/me` and `POST /auth/logout` (allowed for guests) and `GET /auth/admin/verify-access` (admins only, guests denied). `RolesGuard` allows every authenticated role on routes with no `@Roles(...)`, so every **new** authenticated route must declare its roles explicitly; guests are only allowed where `UserRole.GUEST` is listed. Tests: `roles.guard.spec.ts`.
+
+**Database note.** `GUEST` is a new value of the PostgreSQL `role` enum. Local development uses TypeORM `synchronize` (enabled by default), which updates the enum automatically. This project has no migrations yet, so for a persistent or production database the enum change needs a deliberate rollout (for example `ALTER TYPE users_role_enum ADD VALUE 'GUEST'` before deploying this code). Existing users and roles are unchanged.
+
+**Not included (needs a decision):** email verification, rate limiting on `register`/`login`, and a guest-to-`GENERAL_USER` upgrade path.
+
+Example:
+
+```bash
+curl -X POST http://localhost:3001/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"guest@example.com","password":"Campus123","firstName":"Fatima","lastName":"Alawi"}'
+```
 
 ## 7. Getting Started & Local Development
 
