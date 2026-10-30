@@ -136,30 +136,7 @@ const sampleAnchors = ref<CampusMapMarker[]>([
   { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
 ]);
 
-const refreshTileCacheStatus = async () => {
-  try {
-    const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
-    const status = await getMapTileCacheStatus(
-      typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller ?? null : null,
-      cacheStorage,
-    );
-    serviceWorkerControlled.value = status.serviceWorkerControlled;
-    cachedTileCount.value = status.tileCount;
-    cacheStatusError.value = '';
-  } catch (error) {
-    console.error('Unable to inspect the offline map tile cache.', error);
-    cacheStatusError.value = 'Unable to inspect the offline map cache. Check browser storage permissions and reload.';
-  }
-};
 
-const scheduleTileCacheStatusRefresh = () => {
-  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
-  cacheStatusTimer = setTimeout(refreshTileCacheStatus, 500);
-};
-
-const updateNetworkStatus = () => {
-  isOnline.value = navigator.onLine;
-};
 
 const focusAnchor = (anchor: CampusMapMarker) => {
   mapComponent.value?.focusAnchor(anchor);
