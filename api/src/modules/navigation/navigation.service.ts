@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RouteNode } from './entities/route-node.entity'; // i-adjust ang import path kung kinakailangan
@@ -23,6 +23,11 @@ export class NavigationService {
   ) {}
 
   async findShortestPath(startNodeId: string, endNodeId: string) {
+    if (startNodeId === endNodeId) {
+      throw new BadRequestException(
+        'startNodeId and endNodeId cannot be identical. You are already at your destination.',
+      );
+    }
     // 1. Existence Check: Siguraduhing umiiral ang start at destination nodes sa database[cite: 6]
     const startNode = await this.nodeRepository.findOne({ where: { id: startNodeId } });
     const endNode = await this.nodeRepository.findOne({ where: { id: endNodeId } });
