@@ -108,6 +108,12 @@ export class NavigationService {
         }
       }
     }
+    // 7. Error Handling: Kung walang valid na ruta mula startNodeId patungong endNodeId
+  if (distances[endNodeId] === Infinity) {
+    throw new NotFoundException(
+      `No valid pedestrian route exists between node '${startNodeId}' and node '${endNodeId}'.`,
+    );
+  }
 
     // 6. I-reconstruct ang Nabuong Ruta (Path Reconstruction)
     const path: string[] = [];
