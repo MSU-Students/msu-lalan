@@ -334,7 +334,7 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
      cp client/.env.example client/.env
      ```
 
-3. **Start PostgreSQL via Docker**:
+3. **Start PostgreSQL via Docker** (this starts only the database, for local development):
    ```bash
    npm run docker:up
    ```
@@ -349,6 +349,13 @@ curl -X POST http://localhost:3001/api/v1/auth/register \
      npm run dev:api     # Backend API on http://localhost:3001
      npm run dev:client  # Frontend PWA on http://localhost:3000
      ```
+
+   Google sign-in is optional for local development. To enable it, set
+   `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `api/.env` using credentials
+   configured with the callback URL shown in that file.
+
+   To run the entire stack in Docker instead, use `npm run docker:up:all` and
+   do not also run `npm run dev`. The same frontend and API URLs are exposed.
 
 5. **Access Endpoints**:
    - **Frontend Map & Directory**: `http://localhost:3000`

@@ -20,7 +20,8 @@
     "test:api:watch": "npm run test:watch --workspace=api",
     "test:client": "npm run test --workspace=client",
     "test:client:watch": "npm run test:watch --workspace=client",
-    "docker:up": "docker compose up -d",
+    "docker:up": "docker compose up -d postgres",
+    "docker:up:all": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"
   },
