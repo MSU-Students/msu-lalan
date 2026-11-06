@@ -1,6 +1,5 @@
 import { IsNotEmpty, IsUUID, IsOptional, IsBoolean } from 'class-validator';
-import { Transform } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class GetRouteQueryDto {
   @ApiProperty({
@@ -19,12 +18,4 @@ export class GetRouteQueryDto {
   @IsUUID('4', { message: 'endNodeId must be a valid UUID v4 format.' })
   endNodeId: string;
 
-  @ApiPropertyOptional({
-    description: 'Filter path for wheelchair accessible edges only',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true)
-  requireWheelchairAccess?: boolean;
 }
