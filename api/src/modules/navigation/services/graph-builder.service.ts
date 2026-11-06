@@ -46,10 +46,10 @@ export class GraphBuilderService {
     // 2. Pass 1: Kunin ang lahat ng Point features (Nodes) at i-initialize ang Adjacency List
     for (const feature of geoJson.features) {
       if (isPointFeature(feature)) {
-        const { id, name, nodeType } = feature.properties;
+        const { id, name, acronym, category, nodeType } = feature.properties;
         const coordinates = feature.geometry.coordinates;
 
-        nodes.set(id, { id, name, nodeType, coordinates });
+        nodes.set(id, { id, name, acronym, category, nodeType, coordinates });
         adjacencyList.set(id, []); // Simulan bilang empty array
       }
     }

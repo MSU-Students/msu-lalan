@@ -47,10 +47,13 @@
               id="destination-search"
               v-model="destinationSearch"
               type="search"
-              placeholder="Type a campus place"
+              placeholder="Search mapped places (e.g. CICS)"
               class="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800"
               :disabled="isLoadingLocations"
             />
+            <p v-if="destinationSearch && filteredLocations.length === 0" class="mb-2 text-xs text-slate-500" role="status">
+              No mapped places match “{{ destinationSearch }}”. Search currently covers the locations in the sample route map.
+            </p>
             <label for="destination" class="mb-1 block text-xs font-semibold text-slate-700">Destination</label>
             <select
               id="destination"
@@ -63,9 +66,14 @@
                 {{ isLoadingLocations ? 'Loading campus locations...' : 'Choose a mapped location' }}
               </option>
               <option v-for="location in filteredLocations" :key="location.id" :value="location.id">
-                {{ location.name }}{{ location.hasOutgoingRoute ? '' : ' (no connected paths yet)' }}
+                {{ location.name }}
+                {{ location.acronym && !location.name.includes(location.acronym) ? ` (${location.acronym})` : '' }}
+                {{ location.hasOutgoingRoute ? '' : ' (no connected paths yet)' }}
               </option>
             </select>
+            <p v-if="locations.length > 0" class="mt-1 text-[11px] text-slate-500">
+              Search covers {{ locations.length }} locations currently in the sample route map, not every campus place.
+            </p>
           </div>
 
           <button
@@ -165,16 +173,25 @@
         <h3 class="text-sm font-bold text-slate-800 mb-3">Key Campus Anchors (Sprint 0 Baseline)</h3>
         <div class="space-y-2">
           <div
-            v-for="anchor in sampleAnchors"
+            v-for="anchor in locations"
             :key="anchor.id"
             @click="focusAnchor(anchor)"
             class="p-2.5 rounded-lg border border-slate-100 hover:border-msu-gold hover:bg-amber-50/40 transition-colors cursor-pointer"
+            role="button"
+            tabindex="0"
+            @keydown.enter="focusAnchor(anchor)"
+            @keydown.space.prevent="focusAnchor(anchor)"
           >
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-slate-800">{{ anchor.name }}</span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">{{ anchor.category }}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                {{ anchor.category || anchor.nodeType }}
+              </span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-0.5">{{ anchor.coords[0].toFixed(4) }}° N, {{ anchor.coords[1].toFixed(4) }}° E</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">
+              {{ anchor.coordinates[1].toFixed(4) }}° N, {{ anchor.coordinates[0].toFixed(4) }}° E
+              <span v-if="!anchor.hasOutgoingRoute"> · No connected route yet</span>
+            </p>
           </div>
         </div>
       </div>
@@ -268,6 +285,8 @@ const pilarStore = usePilarStore();
 interface CampusLocation {
   id: string;
   name: string;
+  acronym?: string;
+  category?: string;
   nodeType: string;
   coordinates: [number, number];
   hasOutgoingRoute: boolean;
@@ -297,6 +316,7 @@ type RouteApiResult = RouteApiFailure | RouteApiSuccess;
 
 let mapInstance: LeafletMap | null = null;
 let routeLayer: LayerGroup | null = null;
+let locationMarkerLayer: LayerGroup | null = null;
 let startMarker: CircleMarker | null = null;
 const isOnline = ref(true);
 const serviceWorkerControlled = ref(false);
@@ -325,7 +345,10 @@ const apiBaseUrl = useRuntimeConfig().public.apiBaseUrl;
 const filteredLocations = computed(() => {
   const search = destinationSearch.value.trim().toLowerCase();
   return search
-    ? locations.value.filter((location) => location.name.toLowerCase().includes(search))
+    ? locations.value.filter((location) =>
+        [location.name, location.acronym, location.category, location.id]
+          .some((value) => value?.toLowerCase().includes(search)),
+      )
     : locations.value;
 });
 
@@ -336,14 +359,6 @@ const newPilar = ref('Sample');
 function onEnterPilar() {
   pilarStore.addNewPilar(newPilar.value);
 }
-const sampleAnchors = ref([
-  { id: '1', name: 'MSU Commercial Center (Agora)', category: 'Commercial', coords: [8.0035, 124.2621] },
-  { id: '2', name: 'College of Information & Computing Sciences (CICS)', category: 'Academic', coords: [8.0042, 124.2635] },
-  { id: '3', name: 'MSU Senate / Administration Building', category: 'Administrative', coords: [8.0051, 124.2612] },
-  { id: '4', name: 'Dimaporo Gymnasium', category: 'Sports', coords: [8.0028, 124.2605] },
-  { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
-]);
-
 const refreshTileCacheStatus = async () => {
   try {
     const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
@@ -375,12 +390,20 @@ const loadLocations = async () => {
     const response = await fetch(`${apiBaseUrl}/navigation/locations`);
     if (!response.ok) throw new Error('Unable to load campus destinations from the API.');
     locations.value = await response.json() as CampusLocation[];
+    renderLocationMarkers();
   } catch (error) {
     console.error('Unable to load campus navigation locations.', error);
     routeError.value = 'Could not load mapped destinations. Check that the API is running, then reload.';
   } finally {
     isLoadingLocations.value = false;
   }
+};
+
+const selectLocation = (location: CampusLocation) => {
+  destinationNodeId.value = location.id;
+  destinationSearch.value = location.acronym || location.name;
+  clearRoute();
+  mapInstance?.flyTo([location.coordinates[1], location.coordinates[0]], 18, { duration: 1.2 });
 };
 
 const setStartLocation = (latitude: number, longitude: number, label = 'Selected map point') => {
@@ -580,11 +603,8 @@ const initMap = async () => {
     tileLoadErrors.value += 1;
   });
 
-  // Add campus landmark anchors
-  sampleAnchors.value.forEach((anchor) => {
-    const marker = L.marker([anchor.coords[0], anchor.coords[1]]).addTo(mapInstance);
-    marker.bindPopup(`<b>${anchor.name}</b><br><span style="font-size: 11px; color: #666;">${anchor.category}</span>`);
-  });
+  locationMarkerLayer = L.layerGroup().addTo(mapInstance);
+  renderLocationMarkers();
 
   mapInstance.on('zoomend', () => {
     mapStore.setZoom(mapInstance.getZoom());
@@ -596,10 +616,21 @@ const initMap = async () => {
   });
 };
 
-const focusAnchor = (anchor: { coords: number[] }) => {
-  if (mapInstance) {
-    mapInstance.flyTo([anchor.coords[0], anchor.coords[1]], 18, { duration: 1.2 });
-  }
+const renderLocationMarkers = async () => {
+  if (!mapInstance || !locationMarkerLayer) return;
+  const L = (await import('leaflet')).default;
+  if (!mapInstance || !locationMarkerLayer) return;
+  locationMarkerLayer.clearLayers();
+  locations.value.forEach((location) => {
+    const marker = L.marker([location.coordinates[1], location.coordinates[0]])
+      .bindPopup(`${location.name}${location.hasOutgoingRoute ? '' : ' (no connected paths yet)'}`)
+      .addTo(locationMarkerLayer!);
+    marker.on('click', () => selectLocation(location));
+  });
+};
+
+const focusAnchor = (location: CampusLocation) => {
+  selectLocation(location);
 };
 
 onMounted(() => {
@@ -621,6 +652,7 @@ onBeforeUnmount(() => {
     mapInstance.remove();
     mapInstance = null;
   }
+  locationMarkerLayer = null;
 });
 </script>
 <style lang="css" scoped>

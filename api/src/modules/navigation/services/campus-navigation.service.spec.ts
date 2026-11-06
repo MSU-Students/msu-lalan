@@ -18,6 +18,11 @@ describe('CampusNavigationService', () => {
   it('loads graph locations and routes between connected campus nodes', () => {
     const locations = service.getLocations();
     expect(locations).toHaveLength(6);
+    expect(locations.find(({ id }) => id === 'node-cics')).toMatchObject({
+      name: 'College of Information and Computing Sciences (CICS)',
+      acronym: 'CICS',
+      category: 'Academic Units',
+    });
 
     const route = service.findRoute({
       startLatitude: 8.0035,

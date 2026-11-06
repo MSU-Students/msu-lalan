@@ -87,6 +87,8 @@ export class CampusNavigationService implements OnModuleInit {
     return [...this.graph.nodes.values()].map((node) => ({
       id: node.id,
       name: node.name,
+      acronym: node.acronym,
+      category: node.category,
       nodeType: node.nodeType,
       coordinates: node.coordinates,
       hasOutgoingRoute: (this.graph.adjacencyList.get(node.id)?.length ?? 0) > 0,

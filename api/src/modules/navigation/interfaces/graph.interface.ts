@@ -1,6 +1,8 @@
 export interface GraphNode {
   id: string;
   name: string;
+  acronym?: string;
+  category?: string;
   nodeType?: string;
   coordinates: [number, number]; // [longitude, latitude]
 }
