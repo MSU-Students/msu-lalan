@@ -103,6 +103,21 @@
     {
       "type": "Feature",
       "properties": {
+        "id": "node-golf-clubhouse",
+        "code": "GOLF_CLUBHOUSE",
+        "name": "MSU Kalilang Golf & Country Club House",
+        "nodeType": "LANDMARK",
+        "category": "Sports & Recreation",
+        "elevation": 794.0
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [124.2586, 7.9988]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "id": "edge-agora-admin",
         "sourceNodeId": "node-agora",
         "targetNodeId": "node-admin",
