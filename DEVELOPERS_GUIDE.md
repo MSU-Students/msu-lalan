@@ -273,7 +273,6 @@ The frontend provides a username-and-password form at `/login`. It submits the u
    - Create **OAuth 2.0 Client IDs** (Application type: *Web application*).
    - Authorized JavaScript origins:
      - `http://localhost:3000` (Nuxt frontend)
-     - `http://localhost:3001` (NestJS backend)
    - Authorized redirect URIs:
      - `http://localhost:3001/api/v1/auth/google/callback`
 5. Copy `Client ID` and `Client Secret` into `/api/.env`.
