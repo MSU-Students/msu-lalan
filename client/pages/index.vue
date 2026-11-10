@@ -68,29 +68,16 @@
             Zoom: {{ mapStore.zoom }}x
           </div>
         </div>
-        <div
-          class="mb-3 rounded-lg border px-3 py-2 text-xs"
-          :class="isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'"
-          role="status"
-          aria-live="polite"
-        >
-          <p class="font-semibold">{{ isOnline ? 'Online' : 'Offline' }}</p>
-          <p v-if="cacheStatusError">{{ cacheStatusError }}</p>
-          <p v-else-if="!serviceWorkerControlled">
-            Offline tile caching is not active on this page. Open the production app over localhost or HTTPS, then reload after the service worker installs.
-          </p>
-          <p v-else-if="cachedTileCount === 0">
-            No map tiles are cached yet. Browse the map while online; only areas you have viewed are available offline.
-          </p>
-          <p v-else>{{ cachedTileCount }} map tiles cached. Previously viewed areas can render offline; uncached areas may be blank.</p>
-          <p v-if="tileLoadErrors > 0" class="mt-1">
-            Some tiles could not load. If offline, those areas may not be cached; reconnect and view them to cache them.
-          </p>
-        </div>
-
         <!-- Map Leaflet DOM Target Container -->
         <ClientOnly>
-          <div id="msu-map-container" class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"></div>
+          <LeafletMap
+            ref="mapComponent"
+            :center="mapStore.center"
+            :zoom="mapStore.zoom"
+            :markers="sampleAnchors"
+            @center-change="mapStore.setCenter"
+            @zoom-change="mapStore.setZoom"
+          />
           <template #fallback>
             <div class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 text-sm">
               Loading Leaflet Campus Canvas...
@@ -103,20 +90,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref } from 'vue';
 import { useMapStore } from '../stores/map';
-import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import { usePilarStore } from '~/stores/pilar';
+import LeafletMap from '~/components/LeafletMap.vue';
+import type { CampusMapMarker } from '~/types';
 
 const mapStore = useMapStore();
 const pilarStore = usePilarStore();
-let mapInstance: any = null;
-const isOnline = ref(true);
-const serviceWorkerControlled = ref(false);
-const cachedTileCount = ref(0);
-const tileLoadErrors = ref(0);
-const cacheStatusError = ref('');
-let cacheStatusTimer: ReturnType<typeof setTimeout> | undefined;
+const mapComponent = ref<{ focusAnchor: (anchor: CampusMapMarker) => void } | null>(null);
 
 const pageTitle = 'MSU Marawi Campus'; 
 const campusAddress = 'Marawi City, Lanao del Sur 8.0035° N, 124.2621° E';
@@ -125,7 +107,7 @@ const newPilar = ref('Sample');
 function onEnterPilar() {
   pilarStore.addNewPilar(newPilar.value);
 }
-const sampleAnchors = ref([
+const sampleAnchors = ref<CampusMapMarker[]>([
   { id: '1', name: 'MSU Commercial Center (Agora)', category: 'Commercial', coords: [8.0035, 124.2621] },
   { id: '2', name: 'College of Information & Computing Sciences (CICS)', category: 'Academic', coords: [8.0042, 124.2635] },
   { id: '3', name: 'MSU Senate / Administration Building', category: 'Administrative', coords: [8.0051, 124.2612] },
@@ -133,95 +115,12 @@ const sampleAnchors = ref([
   { id: '5', name: 'MSU Peace Park', category: 'Landmark', coords: [8.0062, 124.2589] },
 ]);
 
-const refreshTileCacheStatus = async () => {
-  try {
-    const cacheStorage = typeof window !== 'undefined' ? window.caches : undefined;
-    const status = await getMapTileCacheStatus(
-      typeof navigator !== 'undefined' ? navigator.serviceWorker?.controller ?? null : null,
-      cacheStorage,
-    );
-    serviceWorkerControlled.value = status.serviceWorkerControlled;
-    cachedTileCount.value = status.tileCount;
-    cacheStatusError.value = '';
-  } catch (error) {
-    console.error('Unable to inspect the offline map tile cache.', error);
-    cacheStatusError.value = 'Unable to inspect the offline map cache. Check browser storage permissions and reload.';
-  }
+
+
+const focusAnchor = (anchor: CampusMapMarker) => {
+  mapComponent.value?.focusAnchor(anchor);
 };
 
-const scheduleTileCacheStatusRefresh = () => {
-  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
-  cacheStatusTimer = setTimeout(refreshTileCacheStatus, 500);
-};
-
-const updateNetworkStatus = () => {
-  isOnline.value = navigator.onLine;
-};
-
-const initMap = async () => {
-  if (typeof window === 'undefined') return;
-  const L = (await import('leaflet')).default;
-
-  const container = document.getElementById('msu-map-container');
-  if (!container || mapInstance) return;
-
-  mapInstance = L.map('msu-map-container').setView(
-    [mapStore.center.lat, mapStore.center.lng],
-    mapStore.zoom,
-  );
-
-  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    crossOrigin: true,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(mapInstance);
-
-  tileLayer.on('tileload', scheduleTileCacheStatusRefresh);
-  tileLayer.on('tileerror', () => {
-    tileLoadErrors.value += 1;
-  });
-
-  // Add campus landmark anchors
-  sampleAnchors.value.forEach((anchor) => {
-    const marker = L.marker([anchor.coords[0], anchor.coords[1]]).addTo(mapInstance);
-    marker.bindPopup(`<b>${anchor.name}</b><br><span style="font-size: 11px; color: #666;">${anchor.category}</span>`);
-  });
-
-  mapInstance.on('zoomend', () => {
-    mapStore.setZoom(mapInstance.getZoom());
-  });
-
-  mapInstance.on('moveend', () => {
-    const center = mapInstance.getCenter();
-    mapStore.setCenter({ lat: center.lat, lng: center.lng });
-  });
-};
-
-const focusAnchor = (anchor: { coords: number[] }) => {
-  if (mapInstance) {
-    mapInstance.flyTo([anchor.coords[0], anchor.coords[1]], 18, { duration: 1.2 });
-  }
-};
-
-onMounted(() => {
-  isOnline.value = navigator.onLine;
-  window.addEventListener('online', updateNetworkStatus);
-  window.addEventListener('offline', updateNetworkStatus);
-  navigator.serviceWorker?.addEventListener('controllerchange', refreshTileCacheStatus);
-  refreshTileCacheStatus();
-  initMap();
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('online', updateNetworkStatus);
-  window.removeEventListener('offline', updateNetworkStatus);
-  navigator.serviceWorker?.removeEventListener('controllerchange', refreshTileCacheStatus);
-  if (cacheStatusTimer) clearTimeout(cacheStatusTimer);
-  if (mapInstance) {
-    mapInstance.remove();
-    mapInstance = null;
-  }
-});
 </script>
 <style lang="css" scoped>
 .my-input {
