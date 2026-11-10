@@ -1,13 +1,35 @@
 <template>
-  <div
-    ref="mapContainer"
-    class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"
-  ></div>
+  <div class="w-full flex flex-1 flex-col gap-3 min-h-[420px]">
+    <div
+      class="rounded-lg border px-3 py-2 text-xs"
+      :class="isOnline ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'"
+      role="status"
+      aria-live="polite"
+    >
+      <p class="font-semibold">{{ isOnline ? 'Online' : 'Offline' }}</p>
+      <p v-if="cacheStatusError">{{ cacheStatusError }}</p>
+      <p v-else-if="!serviceWorkerControlled">
+        Offline tile caching is not active on this page. Use the production preview over localhost or HTTPS, then reload after the service worker installs.
+      </p>
+      <p v-else-if="cachedTileCount === 0">
+        No map tiles are cached yet. Browse the map while online; only areas you have viewed are available offline.
+      </p>
+      <p v-else>{{ cachedTileCount }} map tiles cached. Previously viewed areas can render offline; uncached areas may be blank.</p>
+      <p v-if="tileLoadErrors > 0" class="mt-1">
+        Some tiles could not load. If offline, those areas may not be cached; reconnect and view them to cache them.
+      </p>
+    </div>
+    <div
+      ref="mapContainer"
+      class="w-full flex-1 rounded-lg border border-slate-200 bg-slate-100 relative min-h-[420px] overflow-hidden z-10"
+    ></div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Map as LeafletMapInstance } from 'leaflet';
+import { getMapTileCacheStatus } from '../utils/map-tile-cache';
 import type { CampusMapMarker, MapCoordinates } from '~/types';
 
 const props = defineProps<{

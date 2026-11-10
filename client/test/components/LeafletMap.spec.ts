@@ -12,7 +12,10 @@ const mockMap = {
 
 jest.mock('leaflet', () => ({
   map: jest.fn(() => mockMap),
-  tileLayer: jest.fn(() => ({ addTo: jest.fn() })),
+  tileLayer: jest.fn(() => ({
+    on: jest.fn().mockReturnThis(),
+    addTo: jest.fn(),
+  })),
   marker: jest.fn(() => ({
     addTo: jest.fn().mockReturnThis(),
     bindPopup: jest.fn().mockReturnThis(),
@@ -84,7 +87,7 @@ describe('LeafletMap', () => {
     const wrapper = mountMap();
     await flushPromises();
 
-    expect(observe).toHaveBeenCalledWith(wrapper.element);
+    expect(observe).toHaveBeenCalledWith(wrapper.find('.z-10').element);
     resizeCallback?.([], {} as ResizeObserver);
     expect(mockMap.invalidateSize).toHaveBeenCalledWith({ pan: false });
 
