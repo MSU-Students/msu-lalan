@@ -10,6 +10,7 @@ import { RouteEdge } from '../modules/navigation/entities/route-edge.entity';
 import { HazardReport } from '../modules/navigation/entities/hazard-report.entity';
 import { AuditLog } from '../modules/admin/entities/audit-log.entity';
 import { AuthSession } from '../modules/auth/entities/auth-session.entity';
+import { CampusAdminRequest } from '../modules/admin/entities/campus-admin-request.entity';
 
 export const allEntities = [
   User,
@@ -22,6 +23,7 @@ export const allEntities = [
   HazardReport,
   AuditLog,
   AuthSession,
+  CampusAdminRequest,
 ];
 
 export const getTypeOrmConfig = (configService: ConfigService): TypeOrmModuleOptions => ({

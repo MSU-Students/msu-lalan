@@ -247,6 +247,19 @@ describe('AuthService', () => {
     });
   });
 
+  describe('isEligibleCampusAdminEmail', () => {
+    it('accepts only addresses in the configured employee email domain', () => {
+      expect(service.isEligibleCampusAdminEmail('lacsaman.aa60@s.msumain.edu.ph')).toBe(true);
+      expect(service.isEligibleCampusAdminEmail('user@msumain.edu.ph')).toBe(false);
+      expect(service.isEligibleCampusAdminEmail('user@dept.s.msumain.edu.ph')).toBe(false);
+    });
+
+    it('recognizes only the configured bootstrap Super Admin email', () => {
+      expect(service.isDefaultSuperAdminEmail('lacsaman.aa60@s.msumain.edu.ph')).toBe(true);
+      expect(service.isDefaultSuperAdminEmail('another.user@s.msumain.edu.ph')).toBe(false);
+    });
+  });
+
   describe('validateOrCreateGoogleUser', () => {
     it('should create a new user if user does not exist', async () => {
       mockUsersService.findByEmailOrGoogleId.mockResolvedValue(null);
@@ -275,6 +288,7 @@ describe('AuthService', () => {
       const result = await service.validateOrCreateGoogleUser({
         googleId: 'google-1001',
         email: 'juan.delacruz@msumain.edu.ph',
+        emailVerified: true,
         firstName: 'Juan',
         lastName: 'Dela Cruz',
         avatarUrl: 'https://example.com/photo.jpg',
@@ -313,6 +327,7 @@ describe('AuthService', () => {
       const result = await service.validateOrCreateGoogleUser({
         googleId: 'google-1002',
         email: 'encoder@msumain.edu.ph',
+        emailVerified: true,
         firstName: 'Maria',
         lastName: 'Santos',
         avatarUrl: 'https://example.com/new-avatar.jpg',
@@ -322,6 +337,66 @@ describe('AuthService', () => {
       expect(mockUsersService.save).toHaveBeenCalled();
       expect(result.role).toBe(UserRole.CAMPUS_ADMIN);
       expect(result.avatarUrl).toBe('https://example.com/new-avatar.jpg');
+    });
+
+    it('does not classify an unverified Google email as institutional', async () => {
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(null);
+      mockUsersService.create.mockImplementation((user: any) => user);
+      mockUsersService.save.mockImplementation(async (user: any) => user);
+
+      const result = await service.validateOrCreateGoogleUser({
+        googleId: 'google-unverified',
+        email: 'employee@s.msumain.edu.ph',
+        emailVerified: false,
+      });
+
+      expect(result.role).toBe(UserRole.GENERAL_USER);
+      expect(result.isInstitutionalEmail).toBe(false);
+    });
+
+    it('grants Super Admin only to the configured account with a verified institutional Google email', async () => {
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(null);
+      mockUsersService.create.mockImplementation((user: any) => user);
+      mockUsersService.save.mockImplementation(async (user: any) => user);
+
+      const verifiedAccount = await service.validateOrCreateGoogleUser({
+        googleId: 'google-bootstrap-admin',
+        email: 'lacsaman.aa60@s.msumain.edu.ph',
+        emailVerified: true,
+      });
+
+      expect(verifiedAccount.role).toBe(UserRole.SUPER_ADMIN);
+
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(null);
+      const unverifiedAccount = await service.validateOrCreateGoogleUser({
+        googleId: 'google-unverified-bootstrap',
+        email: 'lacsaman.aa60@s.msumain.edu.ph',
+        emailVerified: false,
+      });
+
+      expect(unverifiedAccount.role).toBe(UserRole.GENERAL_USER);
+    });
+
+    it('removes Campus Admin access when Google no longer verifies an institutional email', async () => {
+      const existingUser = {
+        id: 'existing-admin',
+        email: 'encoder@msumain.edu.ph',
+        googleId: 'google-admin',
+        role: UserRole.CAMPUS_ADMIN,
+        isInstitutionalEmail: true,
+        isActive: true,
+      };
+      mockUsersService.findByEmailOrGoogleId.mockResolvedValue(existingUser);
+      mockUsersService.save.mockImplementation(async (user: any) => user);
+
+      const result = await service.validateOrCreateGoogleUser({
+        googleId: 'google-admin',
+        email: 'encoder@msumain.edu.ph',
+        emailVerified: false,
+      });
+
+      expect(result.role).toBe(UserRole.GENERAL_USER);
+      expect(result.isInstitutionalEmail).toBe(false);
     });
   });
 

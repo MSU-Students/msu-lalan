@@ -48,6 +48,44 @@
           </template>
         </div>
       </div>
+      <nav
+        v-if="authStore.isSuperAdmin || (authStore.isAuthenticated && !authStore.isCampusAdmin)"
+        :aria-label="authStore.isSuperAdmin ? 'Super Admin navigation' : 'Account access requests'"
+        class="border-t border-white/10 bg-msu-maroon-dark"
+      >
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
+          <NuxtLink
+            v-if="authStore.isSuperAdmin"
+            to="/admin/campus-admins"
+            class="inline-flex items-center border-b-2 border-msu-gold px-3 py-3 text-xs font-bold tracking-wide text-msu-gold transition-colors hover:bg-white/5 hover:text-white"
+          >
+            Admin access
+          </NuxtLink>
+          <template v-else>
+            <button
+              type="button"
+              :disabled="requestStatus === 'loading' || requestStatus === 'pending' || requestStatus === 'promoted'"
+              class="inline-flex items-center gap-2 border-b-2 border-msu-gold px-3 py-3 text-xs font-bold tracking-wide text-msu-gold transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+              @click="submitCampusAdminRequest"
+            >
+              {{ requestStatus === 'pending'
+                ? 'Campus Admin request pending'
+                : requestStatus === 'promoted'
+                  ? 'Campus Admin access granted'
+                  : requestStatus === 'loading'
+                    ? 'Checking request…'
+                    : 'Request Campus Admin access' }}
+            </button>
+            <span
+              v-if="requestError"
+              class="py-2 text-xs text-red-200"
+              role="alert"
+            >
+              {{ requestError }}
+            </span>
+          </template>
+        </div>
+      </nav>
     </header>
 
     <!-- Main Content -->
@@ -66,13 +104,79 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+
+type RequestStatus = 'loading' | 'none' | 'pending' | 'promoted';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const config = useRuntimeConfig();
 const apiBaseUrl = config.public.apiBaseUrl;
+const requestStatus = ref<RequestStatus>('loading');
+const requestError = ref('');
+
+watch(
+  () => [authStore.user?.id, authStore.user?.role, authStore.token] as const,
+  ([userId]) => {
+    requestError.value = '';
+    if (!userId || authStore.isCampusAdmin) {
+      requestStatus.value = 'none';
+      return;
+    }
+
+    void loadCampusAdminRequest();
+  },
+  { immediate: true },
+);
+
+async function loadCampusAdminRequest() {
+  requestStatus.value = 'loading';
+  try {
+    const response = await fetch(`${apiBaseUrl}/admin/campus-admin-requests/me`, {
+      headers: { Authorization: `Bearer ${authStore.token}` },
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(typeof payload.message === 'string' ? payload.message : 'Unable to check request status.');
+    }
+    requestStatus.value = payload.data?.status === 'PROMOTED'
+      ? 'promoted'
+      : payload.data?.status === 'PENDING'
+        ? 'pending'
+        : 'none';
+    if (requestStatus.value === 'promoted') {
+      await authStore.initFromStorage(apiBaseUrl);
+    }
+  } catch (error: unknown) {
+    requestStatus.value = 'none';
+    requestError.value = error instanceof Error ? error.message : 'Unable to check request status.';
+  }
+}
+
+async function submitCampusAdminRequest() {
+  if (!authStore.token || requestStatus.value === 'loading' || requestStatus.value === 'pending') return;
+  requestStatus.value = 'loading';
+  requestError.value = '';
+  try {
+    const response = await fetch(`${apiBaseUrl}/admin/campus-admin-requests`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authStore.token}` },
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(typeof payload.message === 'string' ? payload.message : 'Unable to submit your request.');
+    }
+    requestStatus.value = payload.data?.status === 'PROMOTED' ? 'promoted' : 'pending';
+    if (requestStatus.value === 'promoted') {
+      await authStore.initFromStorage(apiBaseUrl);
+    }
+  } catch (error: unknown) {
+    requestStatus.value = 'none';
+    requestError.value = error instanceof Error ? error.message : 'Unable to submit your request.';
+  }
+}
 
 async function logout() {
   await authStore.logout(apiBaseUrl);

@@ -279,10 +279,15 @@ The frontend provides a username-and-password form at `/login`. It submits the u
 5. Copy `Client ID` and `Client Secret` into `/api/.env`.
 
 ### 6.2 Institutional Email Domain Filtering
-The `AuthService` validates the user's Google email against the institutional domain (`ALLOWED_DOMAIN=msumain.edu.ph`):
-- Users authenticated via `@msumain.edu.ph` are flagged with `isInstitutionalEmail: true`.
-- Elevated roles (`CAMPUS_ADMIN`, `SUPER_ADMIN`) can be assigned to verified department encoders and administrators.
-- General users (guests, non-institutional emails) have read-only navigation and directory search privileges.
+The `AuthService` validates Google email addresses against the institutional domain (`ALLOWED_DOMAIN=msumain.edu.ph`). Google sign-ins are marked institutional only when Google supplies a verified email claim.
+
+### 6.3 Super Admin Campus Admin promotion
+- `CAMPUS_ADMIN_EMAIL_DOMAIN` configures the employee domain used for Campus Admin eligibility; it defaults to `s.msumain.edu.ph` and must match the complete email domain.
+- The bootstrap Super Admin email defaults to `lacsaman.aa60@s.msumain.edu.ph` and can be overridden with `SUPER_ADMIN_EMAIL`. The matching Google account receives `SUPER_ADMIN` only after Google verifies that exact institutional email.
+- Only an existing, active Google-linked account with a verified institutional email on that configured domain appears in the Super Admin's **Admin access** tab.
+- Any signed-in non-admin may submit a request at `POST /api/v1/admin/campus-admin-requests`; requests are idempotent and appear in the Super Admin review queue even when ineligible. The queue displays the eligibility result, and promotion remains blocked unless all employee checks pass.
+- `GET /api/v1/admin/campus-admin-candidates` lists eligible accounts. `POST /api/v1/admin/users/:userId/promote-campus-admin` rechecks eligibility and updates the role and audit log in one transaction. Both routes require the `SUPER_ADMIN` role.
+- Google-created accounts retain the default `GENERAL_USER` role. Campus Admin privileges are granted only through explicit Super Admin promotion; subsequent Google sign-ins must continue to verify the institutional email.
 
 ---
 
