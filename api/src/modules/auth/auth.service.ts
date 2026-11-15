@@ -23,10 +23,13 @@ export interface IssuedAuthTokens extends AuthResponseDto {
 export interface GoogleProfileDto {
   googleId: string;
   email: string;
+  emailVerified?: boolean;
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
 }
+
+const DEFAULT_SUPER_ADMIN_EMAIL = 'lacsaman.aa60@s.msumain.edu.ph';
 
 @Injectable()
 export class AuthService {
@@ -44,9 +47,34 @@ export class AuthService {
     return normalizedEmail.endsWith(`@${allowedDomain}`) || normalizedEmail.endsWith(`.${allowedDomain}`);
   }
 
+  isEligibleCampusAdminEmail(email: string): boolean {
+    const normalizedEmail = email.toLowerCase().trim();
+    return normalizedEmail.endsWith(`@${this.getCampusAdminEmailDomain()}`);
+  }
+
+  getCampusAdminEmailDomain(): string {
+    return this.configService
+      .get<string>('CAMPUS_ADMIN_EMAIL_DOMAIN', 's.msumain.edu.ph')
+      .toLowerCase()
+      .trim();
+  }
+
+  isDefaultSuperAdminEmail(email: string): boolean {
+    const configuredEmail = this.configService
+      .get<string>('SUPER_ADMIN_EMAIL', DEFAULT_SUPER_ADMIN_EMAIL)
+      .toLowerCase()
+      .trim();
+    const normalizedEmail = email.toLowerCase().trim();
+    return normalizedEmail === configuredEmail && this.isEligibleCampusAdminEmail(normalizedEmail);
+  }
+
   async validateOrCreateGoogleUser(profile: GoogleProfileDto): Promise<User> {
     const normalizedEmail = profile.email.toLowerCase().trim();
-    const isInstitutional = this.isInstitutionalEmail(normalizedEmail);
+    const isInstitutional = profile.emailVerified === true && this.isInstitutionalEmail(normalizedEmail);
+    const isDefaultSuperAdmin =
+      isInstitutional &&
+      profile.emailVerified === true &&
+      this.isDefaultSuperAdminEmail(normalizedEmail);
 
     let user = await this.usersService.findByEmailOrGoogleId(normalizedEmail, profile.googleId);
 
@@ -56,6 +84,14 @@ export class AuthService {
       user.lastName = profile.lastName || user.lastName;
       user.avatarUrl = profile.avatarUrl || user.avatarUrl;
       user.isInstitutionalEmail = isInstitutional;
+      if (isDefaultSuperAdmin) {
+        user.role = UserRole.SUPER_ADMIN;
+      } else if (
+        user.role === UserRole.SUPER_ADMIN ||
+        (user.role === UserRole.CAMPUS_ADMIN && !isInstitutional)
+      ) {
+        user.role = UserRole.GENERAL_USER;
+      }
       return this.usersService.save(user);
     }
 
@@ -65,7 +101,7 @@ export class AuthService {
       firstName: profile.firstName || '',
       lastName: profile.lastName || '',
       avatarUrl: profile.avatarUrl || '',
-      role: UserRole.GENERAL_USER,
+      role: isDefaultSuperAdmin ? UserRole.SUPER_ADMIN : UserRole.GENERAL_USER,
       isInstitutionalEmail: isInstitutional,
       isActive: true,
     });
