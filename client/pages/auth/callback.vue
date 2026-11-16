@@ -36,12 +36,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useRuntimeConfig } from '#app';
 import { useAuthStore } from '../../stores/auth';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const config = useRuntimeConfig();
+const apiBaseUrl = config.public.apiBaseUrl as string;
 
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -54,15 +56,17 @@ onMounted(async () => {
   }
 
   const token = typeof route.query.token === 'string' ? route.query.token : null;
-  if (!token) {
-    error.value = 'No access token received from authentication server.';
+  const refreshToken = typeof route.query.refreshToken === 'string' ? route.query.refreshToken : null;
+
+  if (!token || !refreshToken) {
+    error.value = 'Missing authentication credentials from the server.';
     loading.value = false;
     return;
   }
 
   try {
     // Fetch user profile from API /auth/me
-    const response = await fetch(`${config.public.apiBaseUrl}/auth/me`, {
+    const response = await fetch(`${apiBaseUrl}/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -73,12 +77,13 @@ onMounted(async () => {
     }
 
     const json = await response.json();
-    authStore.setAuth(token, json.data);
-    authStore.setUser(json.data);
-    authStore.scheduleRefresh(config.public.apiBaseUrl);
+    
+    // Pass both the access token and refresh token to the updated store method
+    authStore.setAuth(token, refreshToken, json.data);
+    authStore.scheduleRefresh(apiBaseUrl);
     loading.value = false;
 
-    // Redirect to home after 1 second
+    // Redirect to home after 1 second, effectively clearing tokens from the URL history
     setTimeout(() => {
       router.push('/');
     }, 1000);

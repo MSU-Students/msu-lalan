@@ -35,8 +35,6 @@ import { User, UserRole } from '../users/entities/user.entity';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  private readonly refreshCookieName = 'msu_lalan_refresh';
-
   constructor(
     private authService: AuthService,
     private configService: ConfigService,
@@ -63,15 +61,12 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() loginDto: LoginDto,
-    @Res({ passthrough: true }) res: Response,
+    @Body() loginDto: LoginDto
   ): Promise<AuthResponseDto> {
-    const { refreshToken, ...authResponse } = await this.authService.loginWithPassword(
+    return await this.authService.loginWithPassword(
       loginDto.username,
       loginDto.password,
     );
-    res.cookie(this.refreshCookieName, refreshToken, this.refreshCookieOptions());
-    return authResponse;
   }
 
   @ApiOperation({ summary: 'Initiate Google OAuth 2.0 login' })
@@ -95,11 +90,9 @@ export class AuthController {
     const authData = await this.authService.generateTokens(req.user as User);
     const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3000');
 
-    res.cookie(this.refreshCookieName, authData.refreshToken, this.refreshCookieOptions());
-
-    // Redirect to frontend auth callback page with token
+    // Redirect to frontend auth callback page with tokens in URL instead of cookies.
     return res.redirect(
-      `${frontendUrl}/auth/callback?token=${authData.accessToken}&role=${authData.user.role}`,
+      `${frontendUrl}/auth/callback?token=${authData.accessToken}&refreshToken=${authData.refreshToken}&role=${authData.user.role}`,
     );
   }
 
@@ -108,16 +101,13 @@ export class AuthController {
     return `${frontendUrl.replace(/\/$/, '')}/auth/callback?error=google_auth_failed`;
   }
   @ApiOperation({ summary: 'Refresh the current session and rotate its refresh token' })
+  @ApiBearerAuth()
   @ApiOkResponse({ type: AuthResponseDto })
   @ApiUnauthorizedResponse({ description: 'Missing, expired, or revoked refresh token' })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const { refreshToken, ...authResponse } = await this.authService.refreshTokens(
-      this.readRefreshToken(req),
-    );
-    res.cookie(this.refreshCookieName, refreshToken, this.refreshCookieOptions());
-    return authResponse;
+  async refresh(@Req() req: Request) {
+    return await this.authService.refreshTokens(this.readRefreshToken(req));
   }
 
   @ApiOperation({ summary: 'Log out and invalidate the current session' })
@@ -128,11 +118,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   async logout(
-    @CurrentUser() user: User & { sessionId: string },
-    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user: User & { sessionId: string }
   ) {
     await this.authService.logout(user.sessionId, user.id);
-    res.clearCookie(this.refreshCookieName, this.refreshCookieOptions(false));
     return { statusCode: HttpStatus.OK, message: 'Logged out successfully' };
   }
 
@@ -173,26 +161,11 @@ export class AuthController {
     };
   }
 
-  private refreshCookieOptions(includeMaxAge = true) {
-    const apiPrefix = this.configService.get<string>('API_PREFIX', 'api/v1');
-    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
-    return {
-      httpOnly: true,
-      secure: nodeEnv === 'production',
-      sameSite: 'lax' as const,
-      path: `/${apiPrefix}/auth`,
-      ...(includeMaxAge ? { maxAge: this.authService.getRefreshTtlSeconds() * 1000 } : {}),
-    };
-  }
-
   private readRefreshToken(req: Request): string | undefined {
-    const cookieHeader = req.headers.cookie;
-    if (!cookieHeader) return undefined;
-
-    const cookie = cookieHeader
-      .split(';')
-      .map((part) => part.trim())
-      .find((part) => part.startsWith(`${this.refreshCookieName}=`));
-    return cookie?.slice(this.refreshCookieName.length + 1);
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.split(' ')[1];
+    }
+    return undefined;
   }
 }
