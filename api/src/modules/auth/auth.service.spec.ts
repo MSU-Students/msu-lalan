@@ -152,7 +152,6 @@ describe('AuthService', () => {
     });
 
     it('rejects passwords longer than bcrypt can handle (72 bytes) before hashing', async () => {
-      // 40 emoji characters = 160 bytes, but only 40 string characters.
       await expect(service.registerGuest({ ...dto, password: 'A1' + '😀'.repeat(40) })).rejects.toThrow(
         BadRequestException,
       );
@@ -184,7 +183,7 @@ describe('AuthService', () => {
       mockUsersService.findActiveByEmailWithPasswordHash.mockReset();
     });
 
-    it('normalizes the email, verifies the password, and returns JWT auth data', async () => {
+    it('normalizes the email, verifies the password, and returns both JWT auth and refresh tokens', async () => {
       mockUsersService.findActiveByEmailWithPasswordHash.mockResolvedValue(loginUser);
       (compare as jest.Mock).mockResolvedValue(true);
 
@@ -195,6 +194,8 @@ describe('AuthService', () => {
       );
       expect(compare).toHaveBeenCalledWith('correct-password', loginUser.passwordHash);
       expect(result.accessToken).toBe('mock-signed-jwt-token');
+      expect(result.refreshToken).toEqual(expect.any(String));
+      expect(result.refreshToken.length).toBeGreaterThan(30); 
       expect(result.user.email).toBe(loginUser.email);
     });
 
@@ -326,7 +327,7 @@ describe('AuthService', () => {
   });
 
   describe('generateTokens', () => {
-    it('creates a persisted session and returns an access token and user profile', async () => {
+    it('creates a persisted session and returns both an access token and a refresh token', async () => {
       const testUser: User = {
         id: '123e4567-e89b-12d3-a456-426614174000',
         email: 'admin@msumain.edu.ph',
@@ -360,6 +361,7 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBe('mock-signed-jwt-token');
       expect(result.refreshToken).toEqual(expect.any(String));
+      expect(result.refreshToken.length).toBeGreaterThan(30); 
       expect(result.user.email).toBe('admin@msumain.edu.ph');
       expect(result.user.role).toBe(UserRole.SUPER_ADMIN);
       expect(result.user.departmentAffiliation).toBe('Information & Communication Technology Center');
@@ -393,8 +395,14 @@ describe('AuthService', () => {
         { refreshTokenHash: expect.any(String) },
       );
       expect(result.accessToken).toBe('mock-signed-jwt-token');
+      expect(result.refreshToken).toEqual(expect.any(String)); 
       expect(result.refreshToken).not.toBe('current-refresh-token');
       expect(mockJwtService.sign).toHaveBeenCalledWith(expect.objectContaining({ sid: 'session-1' }));
+    });
+
+    it('rejects a missing refresh token without querying the database', async () => {
+      await expect(service.refreshTokens(undefined)).rejects.toThrow('Invalid or expired refresh token');
+      expect(mockSessionsRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('rejects a refresh token that does not match an active session', async () => {

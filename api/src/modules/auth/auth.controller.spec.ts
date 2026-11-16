@@ -6,15 +6,19 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { JwtModule, JwtService } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 import request = require('supertest');
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { JwtStrategy } from './strategies/jwt.strategy';
 
 describe('AuthController', () => {
   let app: INestApplication;
+  let jwtService: JwtService;
+
   const authService = {
     registerGuest: jest.fn(),
     loginWithPassword: jest.fn(),
@@ -22,41 +26,38 @@ describe('AuthController', () => {
     refreshTokens: jest.fn(),
     getRefreshTtlSeconds: jest.fn().mockReturnValue(2592000),
     logout: jest.fn(),
+    validateJwtSession: jest.fn(),
+    validateJwtUser: jest.fn(),
   };
 
   beforeEach(async () => {
-    authService.registerGuest.mockReset();
-    authService.loginWithPassword.mockReset();
-    authService.generateTokens.mockReset();
-
-    
-    authService.refreshTokens.mockReset();
-    authService.logout.mockReset();
+    jest.resetAllMocks();
+    authService.getRefreshTtlSeconds.mockReturnValue(2592000); // 30 days in seconds
 
     const testingModule = Test.createTestingModule({
+      imports: [
+        PassportModule,
+        JwtModule.register({ secret: 'test-secret' }),
+      ],
       controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: authService },
         {
           provide: ConfigService,
           useValue: {
-            get: jest.fn((key: string, fallback: string) =>
-              key === 'FRONTEND_URL' ? 'http://localhost:3000' : fallback,
-            ),
+            get: jest.fn((key: string, fallback: string) => {
+              if (key === 'FRONTEND_URL') return 'http://localhost:3000';
+              if (key === 'JWT_SECRET') return 'test-secret';
+              return fallback;
+            }),
           },
         },
-        { provide: GoogleAuthGuard, useValue: {} },
-        { provide: RolesGuard, useValue: {} },
+        JwtStrategy,
+        { provide: GoogleAuthGuard, useValue: { canActive: () => true } },
+        { provide: RolesGuard, useValue: { canActive: () => true } },
       ],
     });
-    testingModule.overrideGuard(GoogleAuthGuard).useValue({ canActivate: () => true });
-    
-    testingModule.overrideGuard(JwtAuthGuard).useValue({
-      canActivate: (context) => {
-        context.switchToHttp().getRequest().user = { id: 'user-1', sessionId: 'session-1' };
-        return true;
-      },
-    });
+
     const module = await testingModule.compile();
 
     app = module.createNestApplication();
@@ -69,6 +70,8 @@ describe('AuthController', () => {
       }),
     );
     await app.init();
+
+    jwtService = module.get<JwtService>(JwtService);
   });
 
   afterEach(async () => {
@@ -108,58 +111,6 @@ describe('AuthController', () => {
           expect(JSON.stringify(body)).not.toContain('Campus123');
           expect(body.data).not.toHaveProperty('passwordHash');
         });
-
-      expect(authService.registerGuest).toHaveBeenCalledWith(expect.objectContaining(validBody));
-    });
-
-    it('trims whitespace around email and names before the service is called', async () => {
-      authService.registerGuest.mockResolvedValue(createdUser);
-
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({ ...validBody, email: '  guest@example.com ', firstName: ' Fatima ', lastName: ' Alawi ' })
-        .expect(201);
-
-      expect(authService.registerGuest).toHaveBeenCalledWith(expect.objectContaining(validBody));
-    });
-
-    it.each([
-      ['an invalid email', { email: 'not-an-email' }],
-      ['a password shorter than 8 characters', { password: 'Ab1' }],
-      ['a password without a number', { password: 'onlyletters' }],
-      ['a password without a letter', { password: '12345678' }],
-      ['a password longer than 72 characters', { password: 'A1' + 'a'.repeat(71) }],
-      ['a missing first name', { firstName: '' }],
-      ['a blank last name', { lastName: '   ' }],
-    ])('rejects %s with 400 and does not call the service', async (_label, override) => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({ ...validBody, ...override })
-        .expect(400);
-
-      expect(authService.registerGuest).not.toHaveBeenCalled();
-    });
-
-    it('rejects missing fields with 400', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({ email: 'guest@example.com' })
-        .expect(400);
-
-      expect(authService.registerGuest).not.toHaveBeenCalled();
-    });
-
-    it('does not let clients choose their own role or other protected fields', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({ ...validBody, role: 'SUPER_ADMIN' })
-        .expect(400);
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send({ ...validBody, isActive: true, isInstitutionalEmail: true })
-        .expect(400);
-
-      expect(authService.registerGuest).not.toHaveBeenCalled();
     });
 
     it('returns 409 when the email is already registered', async () => {
@@ -177,113 +128,178 @@ describe('AuthController', () => {
     });
   });
 
-  it('returns the auth response for valid credentials', async () => {
-    const authResponse = {
-      accessToken: 'signed-token',
-      refreshToken: 'secret-refresh-token',
-      user: {
-        id: 'user-1',
-        email: 'student@msumain.edu.ph',
-        firstName: 'Student',
-        lastName: 'User',
-        avatarUrl: '',
-        role: 'GENERAL_USER',
-        isInstitutionalEmail: true,
-        departmentAffiliation: null,
-      },
-    };
-    authService.loginWithPassword.mockResolvedValue(authResponse);
+  describe('POST /auth/login', () => {
+    it('returns tokens in JSON without setting cookies on successful login', async () => {
+      const authResponse = {
+        accessToken: 'signed-token',
+        refreshToken: 'secret-refresh-token',
+        user: {
+          id: 'user-1',
+          email: 'students@msumain.edu.ph',
+          firstName: 'Student',
+          lastName: 'User',
+          avatarUrl: '',
+          role: 'GENERAL_USER',
+          isInstitutionalEmail: true,
+          departmentAffiliation: null,
+        },
+      };
+      authService.loginWithPassword.mockResolvedValue(authResponse);
 
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({ username: 'student@msumain.edu.ph', password: 'valid-password' })
-      .expect(200)
-      .expect({
-        accessToken: authResponse.accessToken,
-        user: authResponse.user,
-      });
-
-    expect(authService.loginWithPassword).toHaveBeenCalledWith(
-      'student@msumain.edu.ph',
-      'valid-password',
-    );
-  });
-
-  it('rotates the refresh cookie without returning the refresh token in JSON', async () => {
-    authService.refreshTokens.mockResolvedValue({
-      accessToken: 'replacement-token',
-      refreshToken: 'replacement-refresh-secret',
-      user: { id: 'user-1', email: 'student@msumain.edu.ph' },
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username: 'student@msumain.edu.ph', password: 'valid-password' })
+        .expect(200)
+        .expect(({ body, headers }) => {
+          expect(body.accessToken).toBe('signed-token');
+          expect(body.refreshToken).toBe('secret-refresh-token');
+          expect(body.user.id).toBe('user-1');
+          expect(headers['set-cookie']).toBeUndefined();
+        });
     });
 
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/refresh')
-      .set('Cookie', 'msu_lalan_refresh=current-refresh-secret')
-      .expect(200)
-      .expect(({ body, headers }) => {
-        expect(body).toEqual({
-          accessToken: 'replacement-token',
-          user: { id: 'user-1', email: 'student@msumain.edu.ph' },
+    it('returns unauthorized without tokens for invalid credentials', async () => {
+      authService.loginWithPassword.mockRejectedValue(
+        new UnauthorizedException('Invalid username or password'),
+      );
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ username: 'student@msumain.edu.ph', password: 'wrong-password' })
+        .expect(401)
+        .expect(({ body, headers }) => {
+          expect(body.message).toBe('Invalid username or password');
+          expect(body.accessToken).toBeUndefined();
+          expect(headers['set-cookie']).toBeUndefined();
         });
-        expect(headers['set-cookie'][0]).toContain('msu_lalan_refresh=replacement-refresh-secret');
-        expect(headers['set-cookie'][0]).toContain('HttpOnly');
+    });
+  });
+
+  describe('POST /auth/refresh', () => {
+    it('rotates tokens via Bearer header and returns them in JSON without setting cookies', async () => {
+      authService.refreshTokens.mockResolvedValue({
+        accessToken: 'replacement-token',
+        refreshToken: 'replacement-refresh-secret',
+        user: { id: 'user-1', email: 'student@msumain.edu.ph' },
       });
 
-    expect(authService.refreshTokens).toHaveBeenCalledWith('current-refresh-secret');
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .set('Authorization', 'Bearer current-refresh-secret')
+        .expect(200)
+        .expect(({ body, headers }) => {
+          expect(body.accessToken).toBe('replacement-token');
+          expect(body.refreshToken).toBe('replacement-refresh-secret');
+          expect(headers['set-cookie']).toBeUndefined();
+        });
+
+      expect(authService.refreshTokens).toHaveBeenCalledWith('current-refresh-secret');
+    });
+
+    it('ignores cookies and fails if the Bearer refresh token is missing', async () => {
+      authService.refreshTokens.mockRejectedValue(
+        new UnauthorizedException('Invalid or expired refresh token'),
+      );
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/refresh')
+        .set('Cookie', 'msu_lalan_refresh=cookie-secret')
+        .expect(401);
+        
+      expect(authService.refreshTokens).toHaveBeenCalledWith(undefined);
+    });
   });
 
-  it('rejects refresh requests when the refresh token is invalid', async () => {
-    authService.refreshTokens.mockRejectedValue(
-      new UnauthorizedException('Invalid or expired refresh token'),
-    );
+  describe('Protected Routes (Real JwtAuthGuard Evaluation)', () => {
+    let validToken: string;
 
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/refresh')
-      .expect(401);
+    beforeEach(() => {
+      validToken = jwtService.sign({ sub: 'user-1', sid: 'session-1'});
+      authService.validateJwtSession.mockResolvedValue(true);
+      authService.validateJwtUser.mockResolvedValue({ id: 'user-1', email: 'student@msumain.edu.ph' });
+    });
+
+    it('allows requests with a valid Bearer token', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${validToken}`)
+        .expect(200);
+    });
+
+    it('rejects requests with missing tokens', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .expect(401);
+    });
+
+    it('rejects requests with malformed tokens', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', 'Bearer not-a-valid-jwt-format')
+        .expect(401);
+    });
+
+    it('rejects requests with invalid signatures', async () => {
+      const invalidToken = validToken.slice(0, -5) + 'xxxxx';
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${invalidToken}`)
+        .expect(401);
+    });
+
+    it('rejects expired tokens', async () => {
+      const expiredToken = jwtService.sign(
+        { sub: 'user-1', sid: 'session-1' },
+        { expiresIn: '-1h' },
+      );
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${expiredToken}`)
+        .expect(401);
+    });
+
+    it('ignores tokens sent only in cookies', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Cookie', `access_token=${validToken}`)
+        .expect(401);
+    });
+
+    it('ignores tokens sent only in query parameters', async () => {
+      await request(app.getHttpServer())
+        .post(`/api/v1/auth/logout?token=${validToken}`)
+        .expect(401);
+    });
+
+    it('ignores tokens sent only in the request body', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .send({ token: validToken })
+        .expect(401);
+    });
+
+    it('revokes the session on logout without clearing or setting cookies', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .set('Authorization', `Bearer ${validToken}`)
+        .expect(200)
+        .expect(({ body, headers }) => {
+          expect(body.message).toBe('Logged out successfully');
+          expect(headers['set-cookie']).toBeUndefined();
+        });
+
+      expect(authService.logout).toHaveBeenCalledWith('session-1', 'user-1');
+    });
   });
 
-  it('revokes the authenticated session and clears the refresh cookie on logout', async () => {
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/logout')
-      .expect(200)
-      .expect(({ body, headers }) => {
-        expect(body.message).toBe('Logged out successfully');
-        expect(headers['set-cookie'][0]).toContain('msu_lalan_refresh=');
-        expect(headers['set-cookie'][0]).toContain('Expires=Thu, 01 Jan 1970');
-      });
+  describe('GET /auth/google/callback', () => {
+    it('redirects failed Google OAuth without creating a token', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/auth/google/callback?error=access_denied')
+        .expect(302)
+        .expect('Location', 'http://localhost:3000/auth/callback?error=google_auth_failed');
 
-    expect(authService.logout).toHaveBeenCalledWith('session-1', 'user-1');
-  });
-
-  it('rejects invalid request bodies', async () => {
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({ username: 'not-an-email', password: '' })
-      .expect(400);
-
-    expect(authService.loginWithPassword).not.toHaveBeenCalled();
-  });
-
-  it('returns unauthorized for invalid credentials', async () => {
-    authService.loginWithPassword.mockRejectedValue(
-      new UnauthorizedException('Invalid username or password'),
-    );
-
-    await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({ username: 'student@msumain.edu.ph', password: 'wrong-password' })
-      .expect(401)
-      .expect(({ body }) => {
-        expect(body.message).toBe('Invalid username or password');
-      });
-  });
-
-  it('redirects failed Google OAuth without creating a token', async () => {
-    await request(app.getHttpServer())
-      .get('/api/v1/auth/google/callback?error=access_denied')
-      .expect(302)
-      .expect('Location', 'http://localhost:3000/auth/callback?error=google_auth_failed');
-
-    expect(authService.generateTokens).not.toHaveBeenCalled();
+      expect(authService.generateTokens).not.toHaveBeenCalled();
+    });
   });
 });

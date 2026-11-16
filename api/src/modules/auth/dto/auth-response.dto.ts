@@ -39,6 +39,9 @@ export class AuthResponseDto {
   @ApiProperty()
   accessToken: string;
 
+  @ApiProperty({ description: 'The refresh token used for session renewal, now returned in JSON.' })
+  refreshToken: string;
+
   @ApiProperty({ type: AuthUserDto })
   user: AuthUserDto;
 }

@@ -38,6 +38,14 @@ describe('JwtStrategy', () => {
     expect(authService.validateJwtUser).not.toHaveBeenCalled();
   });
 
+  it('rejects a token when the associated user is inactive or deleted', async () => {
+    authService.validateJwtSession.mockResolvedValue(true);
+    authService.validateJwtUser.mockResolvedValue(null);
+
+    await expect(strategy.validate(payload)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(authService.validateJwtUser).toHaveBeenCalledWith('user-1');
+  });
+
   it('accepts an active session and attaches its ID to the authenticated user', async () => {
     const user = { id: 'user-1', isActive: true } as User;
     authService.validateJwtSession.mockResolvedValue(true);

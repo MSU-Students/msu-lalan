@@ -3,6 +3,7 @@ import { UserRole, type AuthUser, type RegisterPayload, type RegisterResult } fr
 
 interface LoginResponse {
   accessToken: string;
+  refreshToken: string;
   user: AuthUser;
 }
 
@@ -16,6 +17,7 @@ function isLoginResponse(value: unknown): value is LoginResponse {
   const authUser = user as Record<string, unknown>;
   return (
     typeof response.accessToken === 'string' &&
+    typeof response.refreshToken === 'string' &&
     typeof authUser.id === 'string' &&
     typeof authUser.email === 'string' &&
     Object.values(UserRole).includes(authUser.role as UserRole) &&
@@ -25,6 +27,7 @@ function isLoginResponse(value: unknown): value is LoginResponse {
 
 export interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -34,6 +37,7 @@ export interface AuthState {
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     token: null,
+    refreshToken: null,
     user: null,
     isAuthenticated: false,
     isLoading: false,
@@ -61,7 +65,6 @@ export const useAuthStore = defineStore('auth', {
       try {
         response = await fetch(`${apiBaseUrl}/auth/login`, {
           method: 'POST',
-          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
         });
@@ -90,15 +93,17 @@ export const useAuthStore = defineStore('auth', {
         throw new Error('The sign-in service returned an unexpected response.');
       }
 
-      this.setAuth(payload.accessToken, payload.user);
+      this.setAuth(payload.accessToken, payload.refreshToken, payload.user);
       this.scheduleRefresh(apiBaseUrl);
     },
 
-    setToken(token: string) {
+    setTokens(token: string, refreshToken: string) {
       this.token = token;
+      this.refreshToken = refreshToken;
       this.isAuthenticated = true;
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.setItem('msu_lalan_token', token);
+        localStorage.setItem('msu_lalan_refresh_token', refreshToken);
       }
     },
 
@@ -106,8 +111,8 @@ export const useAuthStore = defineStore('auth', {
       this.user = user;
     },
 
-    setAuth(token: string, user: AuthUser) {
-      this.setToken(token);
+    setAuth(token: string, refreshToken: string, user: AuthUser) {
+      this.setTokens(token, refreshToken);
       this.setUser(user);
     },
 
@@ -162,11 +167,10 @@ export const useAuthStore = defineStore('auth', {
         try {
           await fetch(`${apiBaseUrl}/auth/logout`, {
             method: 'POST',
-            credentials: 'include',
             headers: { Authorization: `Bearer ${this.token}` },
           });
         } catch {
-          // Clear local credentials even when the API is unreachable.
+          // Proceed with local clear even if the server request fails.
         }
       }
 
@@ -174,18 +178,24 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async refreshSession(apiBaseUrl: string): Promise<boolean> {
+      if (!this.refreshToken) {
+        this.clearAuthState();
+        return false;
+      }
+
       try {
         const response = await fetch(`${apiBaseUrl}/auth/refresh`, {
           method: 'POST',
-          credentials: 'include',
+          headers: { Authorization: `Bearer ${this.refreshToken}` },
         });
+
         if (!response.ok) {
           this.clearAuthState();
           return false;
         }
 
         const json = await response.json();
-        this.setAuth(json.accessToken, json.user);
+        this.setAuth(json.accessToken, json.refreshToken, json.user);
         this.scheduleRefresh(apiBaseUrl);
         return true;
       } catch {
@@ -197,9 +207,12 @@ export const useAuthStore = defineStore('auth', {
       if (typeof window === 'undefined' || !window.localStorage) return;
 
       const storedToken = localStorage.getItem('msu_lalan_token');
-      if (!storedToken) return;
+      const storedRefreshToken = localStorage.getItem('msu_lalan_refresh_token');
+
+      if (!storedToken || !storedRefreshToken) return;
 
       this.token = storedToken;
+      this.refreshToken = storedRefreshToken;
       this.isAuthenticated = true;
 
       if (!apiBaseUrl) return;
@@ -210,7 +223,6 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         const response = await fetch(`${apiBaseUrl}/auth/me`, {
-          credentials: 'include',
           headers: { Authorization: `Bearer ${storedToken}` },
         });
         if (response.ok) {
@@ -229,10 +241,12 @@ export const useAuthStore = defineStore('auth', {
       if (this.refreshTimer) clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
       this.token = null;
+      this.refreshToken = null;
       this.user = null;
       this.isAuthenticated = false;
       if (typeof window !== 'undefined' && window.localStorage) {
         localStorage.removeItem('msu_lalan_token');
+        localStorage.removeItem('msu_lalan_refresh_token');
       }
     },
 
